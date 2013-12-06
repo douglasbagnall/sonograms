@@ -1,0 +1,8 @@
+#ignore these in git listings
+*.pyc
+*~
+*.[oadi]
+*.so
+.emacs*
+/junk/
+*.wav
