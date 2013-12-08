@@ -1,8 +1,12 @@
 var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
 
-var drawing = 0;
-
+var COLOUR_LUT = {
+    k: "#0ff",
+    m: "#f00",
+    f: "#0f0",
+    e: "#000"
+};
 
 function fill_canvas(wav){
     var canvas = document.getElementById('fft');
@@ -35,14 +39,51 @@ function fill_canvas(wav){
             var o = ((canvas.height - i - 1) * width + col) * 4;
             var v = s[i] * s[i] + s[i + 1] * s[i + 1] * 10;
             //pixels[o] = Math.pow(Math.max(v - 1e-7, 0), 0.33) * 1e4;
-            pixels[o] = 256 - 1e-4 / (v + 1e-12);
+            //pixels[o] = 255 - 1e-4 / (v * + 1e-9);
+            pixels[o] = v * 3e8;
             pixels[o + 1] = Math.sqrt(v) * 1e5;
-            pixels[o + 2] = Math.pow(v, 0.25) * 3e3;
+            pixels[o + 2] = Math.pow(v, 0.25) * 1e3;
             pixels[o + 3] = 255;
         }
         //console.log(col, v, s[200], spacing, pixels[o]);
     }
     context.putImageData(imgdata, 0, 0);
+    function refill_background(){
+        var data = context.getImageData(0, 0, canvas.width, canvas.height);
+        var pix = data.data;
+        for (i = 0; i < 4 * canvas.width * canvas.height; i += 4){
+            if (pix[i] == 0 && pix[i + 1] == 0 && pix[i + 2] == 0){
+                pix[i] = pixels[i];
+                pix[i + 1] = pixels[i + 1];
+                pix[i + 2] = pixels[i + 2];
+            }
+        }
+        context.putImageData(data, 0, 0);
+    }
+    var drawing = 0;
+    var colour = COLOUR_LUT['m'];
+    var colour_label = document.getElementById("colour-m");
+    colour_label.style.background = "#fc0";
+    function switch_colour(c){
+        if (colour === '#000'){
+            refill_background();
+        }
+        var new_colour = COLOUR_LUT[c];
+        if (new_colour !== undefined){
+            colour_label.style.background = "#fff";
+            colour_label = document.getElementById("colour-" + c);
+            colour_label.style.background = "#fc4";
+            colour = new_colour;
+        }
+    }
+
+    for (var c in COLOUR_LUT){
+        var label = document.getElementById("colour-" + c);
+        label.onclick = function(x){
+            return function(){switch_colour(x);};
+        }(c);
+    }
+
     function draw_to(x, y, colour){
         context.lineTo(x, y);
         context.stroke();
@@ -54,7 +95,7 @@ function fill_canvas(wav){
         context.beginPath();
         context.lineWidth = 5;
 	context.lineJoin = 'round';
-        context.strokeStyle = "#0ff";
+        context.strokeStyle = colour;
         context.moveTo(x, y);
         draw_to(x, y);
     };
@@ -66,6 +107,10 @@ function fill_canvas(wav){
             draw_to(e.pageX - this.offsetLeft,
                     e.pageY - this.offsetTop);
         }
+    };
+    document.onkeypress = function(e){
+        var c = String.fromCharCode(e.charCode);
+        switch_colour(c);
     };
 }
 

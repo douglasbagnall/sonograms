@@ -1,4 +1,38 @@
 
 #canvas, #fft {
   border: 1px solid black;
+  cursor: crosshair;
+}
+
+#instructions {
+  float: left;
+  width: 10em;
+}
+
+#instructions div {
+  cursor: pointer;
+}
+
+#instructions b{
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  padding: 2px;
+}
+
+#colour-k b {
+  background: #0ff;
+  color: #000;
+}
+#colour-m b {
+  background: #f00;
+  color: #000;
+}
+#colour-f b {
+  background: #0f0;
+  color: #000;
+}
+#colour-e b {
+  background: #000;
+  color: #fff;
 }
