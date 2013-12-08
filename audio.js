@@ -46,8 +46,17 @@ function fill_canvas(wav){
 }
 
 
+function message(m){
+    var el = document.getElementById('message');
+    el.innerHTML += "<p>" +  m + "</p>";
+}
 
 function on_page_load() {
+    if (document.location.protocol == 'file:'){
+        message("<b>Warning:</b> this probably won't work from the local filesystem " +
+                "(<tt>file://</tt> protocol), due to browser security settings. " +
+                "<br>Use a local webserver, like webfsd.");
+    }
     var request = new AudioFileRequest(wav_1_minute);
     request.onSuccess = function(decoded) {
         fill_canvas(decoded);
