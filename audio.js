@@ -1,7 +1,7 @@
 var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
 
-
+var drawing = 0;
 
 
 function fill_canvas(wav){
@@ -43,6 +43,30 @@ function fill_canvas(wav){
         //console.log(col, v, s[200], spacing, pixels[o]);
     }
     context.putImageData(imgdata, 0, 0);
+    function draw_to(x, y, colour){
+        context.lineTo(x, y);
+        context.stroke();
+    }
+    canvas.onmousedown = function(e){
+        drawing = 1;
+        var x = e.pageX - this.offsetLeft;
+        var y = e.pageY - this.offsetTop;
+        context.beginPath();
+        context.lineWidth = 5;
+	context.lineJoin = 'round';
+        context.strokeStyle = "#0ff";
+        context.moveTo(x, y);
+        draw_to(x, y);
+    };
+    document.onmouseup = function(e){
+        drawing = 0;
+    };
+    canvas.onmousemove = function(e){
+        if (drawing){
+            draw_to(e.pageX - this.offsetLeft,
+                    e.pageY - this.offsetTop);
+        }
+    };
 }
 
 
