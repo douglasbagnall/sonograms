@@ -9,6 +9,8 @@ var COLOUR_LUT = {
     e: "#000"
 };
 
+var audio_context;
+
 function parse_wav(raw){
     /*   https://ccrma.stanford.edu/courses/422/projects/WaveFormat/ */
     var header = new DataView(raw, 0, 44);
@@ -49,11 +51,13 @@ function parse_wav(raw){
 }
 
 
-function fill_canvas(audio, samplerate){
+function fill_canvas(audio, samplerate, native_audio){
     var canvas = document.getElementById('fft');
     var context = canvas.getContext('2d');
     var width = canvas.width;
     var spacing = audio.length / width;
+    var pixel2sec = native_audio.duration / width;
+    var audio_source;
     var window_size = 1024;
     var fft = new FFT(window_size, samplerate);
     //context.fillRect(50, 25, 150, 100);
@@ -121,21 +125,39 @@ function fill_canvas(audio, samplerate){
             return function(){switch_colour(x);};
         }(c);
     }
+    canvas.onclick = function(e){
+        if (e.shiftKey){
+            var x = e.pageX - this.offsetLeft;
+            if (audio_source){
+                audio_source.stop(0);
+            }
+            console.log(x * pixel2sec);
+            /*audio_source.onended = function(){
+                audio_source = undefined;
+            };*/
+            audio_source = audio_context.createBufferSource();
+            audio_source.buffer = native_audio;
+            audio_source.connect(audio_context.destination);
+            audio_source.start(0, x * pixel2sec);
+        }
+    };
 
     function draw_to(x, y, colour){
         context.lineTo(x, y);
         context.stroke();
     }
     canvas.onmousedown = function(e){
-        drawing = 1;
-        var x = e.pageX - this.offsetLeft;
-        var y = e.pageY - this.offsetTop;
-        context.beginPath();
-        context.lineWidth = 5;
-	context.lineJoin = 'round';
-        context.strokeStyle = colour;
-        context.moveTo(x, y);
-        draw_to(x, y);
+        if (! e.shiftKey){
+            drawing = 1;
+            var x = e.pageX - this.offsetLeft;
+            var y = e.pageY - this.offsetTop;
+            context.beginPath();
+            context.lineWidth = 5;
+	    context.lineJoin = 'round';
+            context.strokeStyle = colour;
+            context.moveTo(x, y);
+            draw_to(x, y);
+        }
     };
     document.onmouseup = function(e){
         drawing = 0;
@@ -159,17 +181,23 @@ function message(m){
 }
 
 function load_audio(url) {
-    var ac = new AudioContext();
+    var AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (! AudioContext){
+        message("Web API seems to be missing from this browser.<br>" +
+               "It could almost work like that, but I can't be bothered" +
+               " maintaining it. Expect errors. Sorry!");
+    }
+    /*audio_context is global*/
+    audio_context = new AudioContext();
     var request = new XMLHttpRequest();
     request.open('GET', url, true);
     request.responseType = 'arraybuffer';
     request.onload = function(){
         var wav = request.response;
-        var norm = parse_wav(wav);
-        fill_canvas(norm.audio, norm.samplerate);
-        ac.decodeAudioData(wav,
+        audio_context.decodeAudioData(wav,
             function(audio) {
-                var audiodata = audio.getChannelData(0);
+                var norm = parse_wav(wav);
+                fill_canvas(norm.audio, norm.samplerate, audio);
             });
     };
     request.send();
@@ -180,12 +208,6 @@ function on_page_load() {
         message("<b>Warning:</b> this probably won't work from the local filesystem " +
                 "(<tt>file://</tt> protocol), due to browser security settings. " +
                 "<br>Use a local webserver, like webfsd.");
-    }
-    window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (! window.AudioContext){
-        message("Web API seems to be missing from this browser.<br>" +
-               "It could almost work like that, but I can't be bothered" +
-               " maintaining it. Expect errors. Sorry!");
     }
     load_audio(URL);
 }
