@@ -1,5 +1,6 @@
 var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
+var URL = wav_1_minute;
 
 var COLOUR_LUT = {
     k: "#0ff",
@@ -8,19 +9,58 @@ var COLOUR_LUT = {
     e: "#000"
 };
 
-function fill_canvas(wav){
+function parse_wav(raw){
+    /*   https://ccrma.stanford.edu/courses/422/projects/WaveFormat/ */
+    var header = new DataView(raw, 0, 44);
+    var data = raw.slice(44);
+    if (header.getUint32(0, 0) != 0x52494646 || //'RIFF'
+        header.getUint32(8, 0) != 0x57415645 || //'WAVE'
+        header.getUint16(20, 1) != 1         || //format (pcm == 1)
+        header.getUint32(40, 1) != data.byteLength  //length should match data
+       ){
+       message("I can't understand this file. Is it really a WAV?" +
+               " (Continuing regardless...)");
+       console.log(header.getUint32(0, 0), 0x52494646,
+       header.getUint32(8, 0), 0x57415645,
+       header.getUint16(16, 1), 1,
+       header.getUint32(40, 1), data.byteLength);
+    }
+    var samplerate = header.getUint32(24, 1);
+    /*if there are more than one channel, just silently grab the first one */
+    var channels = header.getUint16(22, 1);
+    var bits_per_sample = header.getUint16(34, 1);
+    var samples, scale;
+    if (bits_per_sample == 8){
+        samples = new Int8Array(data);
+        scale = 1.0 / 256;
+    }
+    else if (bits_per_sample == 16){
+        samples = new Int16Array(data);
+        scale = 1.0 / 32768;
+    }
+    var normalised_samples = new Float32Array(samples.length / channels);
+    for (var i = 0; i < normalised_samples.length; i++){
+        normalised_samples[i] = samples[i * channels] * scale;
+    }
+    return {
+        audio: normalised_samples,
+        samplerate: samplerate
+    };
+}
+
+
+function fill_canvas(audio, samplerate){
     var canvas = document.getElementById('fft');
     var context = canvas.getContext('2d');
     var width = canvas.width;
-    var spacing = wav.length / width;
+    var spacing = audio.length / width;
     var window_size = 1024;
-    var fft = new FFT(window_size, wav.sampleRate);
+    var fft = new FFT(window_size, samplerate);
     //context.fillRect(50, 25, 150, 100);
     var imgdata = context.createImageData(canvas.width, canvas.height);
     var pixels = imgdata.data;
     var i;
     var left, col;
-    var audio = wav.channels[0];
     var mask_window = new Float32Array(window_size);
     var data_window = new Float32Array(window_size);
     var tau_norm = Math.PI * 2 / window_size;
@@ -28,7 +68,7 @@ function fill_canvas(wav){
         mask_window[i] = 0.5 - 0.5 * Math.cos(tau_norm * i);
     }
 
-    for (left = 0, col = 0; left + window_size < wav.length; left += spacing, col++){
+    for (left = 0, col = 0; left + window_size < audio.length; left += spacing, col++){
         var square_window = audio.subarray(left, left + window_size);
         for (i = 0; i < window_size; i++){
             data_window[i] = square_window[i] * mask_window[i];
@@ -37,9 +77,7 @@ function fill_canvas(wav){
         var s = fft.spectrum;
         for (i = canvas.height - 1; i >= 0; i--){
             var o = ((canvas.height - i - 1) * width + col) * 4;
-            var v = s[i] * s[i] + s[i + 1] * s[i + 1] * 10;
-            //pixels[o] = Math.pow(Math.max(v - 1e-7, 0), 0.33) * 1e4;
-            //pixels[o] = 255 - 1e-4 / (v * + 1e-9);
+            var v = s[i] * s[i] + s[i + 1] * s[i + 1];
             pixels[o] = v * 3e8;
             pixels[o + 1] = Math.sqrt(v) * 1e5;
             pixels[o + 2] = Math.pow(v, 0.25) * 1e3;
@@ -120,20 +158,66 @@ function message(m){
     el.innerHTML += "<p>" +  m + "</p>";
 }
 
+function load_audio(url) {
+    var ac = new AudioContext();
+    var request = new XMLHttpRequest();
+    request.open('GET', url, true);
+    request.responseType = 'arraybuffer';
+    request.onload = function(){
+        var wav = request.response;
+        var norm = parse_wav(wav);
+        fill_canvas(norm.audio, norm.samplerate);
+        ac.decodeAudioData(wav,
+            function(audio) {
+                /* Aim for a sample rate close to but not less than
+                 * 8kHz, while avoiding the expense of non-integral
+                 * resampling.
+                 *
+                 * 44.1kHz -> 8820Hz
+                 * 48kHz -> 8000Hz
+                 */
+                var ratio = parseInt(audio.sampleRate / 8000);
+                var length = audio.length / ratio;
+                var downsampled = new Float32Array(length);
+                var audiodata = audio.getChannelData(0);
+                /*
+                for (var i = 0; i < length; i++){
+                    downsampled[i] = audiodata[i * ratio];
+                }
+                fill_canvas(downsampled, audio.sampleRate / ratio);
+                 */
+            });
+    };
+    request.send();
+}
+
+function load_audio_audiofile(url){
+    var request = new AudioFileRequest(url);
+    request.onSuccess = function(a) {
+        fill_canvas(a.channels[0], a.sampleRate);
+    };
+    request.onFailure = function() {
+        message("hmm, seems we couldn't load the audio");
+    };
+    request.send();
+}
+
 function on_page_load() {
     if (document.location.protocol == 'file:'){
         message("<b>Warning:</b> this probably won't work from the local filesystem " +
                 "(<tt>file://</tt> protocol), due to browser security settings. " +
                 "<br>Use a local webserver, like webfsd.");
     }
-    var request = new AudioFileRequest(wav_1_minute);
-    request.onSuccess = function(decoded) {
-        fill_canvas(decoded);
-    };
-    request.onFailure = function() {
-        alert("bad ");
-    };
-    request.send();
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (! window.AudioContext){
+        message("Web API seems to be missing from this browser.");
+    }
+    if (window.AudioContext){
+        load_audio(URL);
+    }
+    else {
+        load_audio_audiofile(URL);
+    }
 }
 
 window.addEventListener('load', on_page_load);
