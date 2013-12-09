@@ -169,35 +169,8 @@ function load_audio(url) {
         fill_canvas(norm.audio, norm.samplerate);
         ac.decodeAudioData(wav,
             function(audio) {
-                /* Aim for a sample rate close to but not less than
-                 * 8kHz, while avoiding the expense of non-integral
-                 * resampling.
-                 *
-                 * 44.1kHz -> 8820Hz
-                 * 48kHz -> 8000Hz
-                 */
-                var ratio = parseInt(audio.sampleRate / 8000);
-                var length = audio.length / ratio;
-                var downsampled = new Float32Array(length);
                 var audiodata = audio.getChannelData(0);
-                /*
-                for (var i = 0; i < length; i++){
-                    downsampled[i] = audiodata[i * ratio];
-                }
-                fill_canvas(downsampled, audio.sampleRate / ratio);
-                 */
             });
-    };
-    request.send();
-}
-
-function load_audio_audiofile(url){
-    var request = new AudioFileRequest(url);
-    request.onSuccess = function(a) {
-        fill_canvas(a.channels[0], a.sampleRate);
-    };
-    request.onFailure = function() {
-        message("hmm, seems we couldn't load the audio");
     };
     request.send();
 }
@@ -210,14 +183,11 @@ function on_page_load() {
     }
     window.AudioContext = window.AudioContext || window.webkitAudioContext;
     if (! window.AudioContext){
-        message("Web API seems to be missing from this browser.");
+        message("Web API seems to be missing from this browser.<br>" +
+               "It could almost work like that, but I can't be bothered" +
+               " maintaining it. Expect errors. Sorry!");
     }
-    if (window.AudioContext){
-        load_audio(URL);
-    }
-    else {
-        load_audio_audiofile(URL);
-    }
+    load_audio(URL);
 }
 
 window.addEventListener('load', on_page_load);
