@@ -131,34 +131,44 @@ function fill_canvas(audio, samplerate, native_audio){
     function advance_playing_line(){
         context.putImageData(hidden_data, playing_column, 0);
         playing_column++;
+        if (playing_column >= canvas.width){
+            playing_column = 0;
+        }
         hidden_data = context.getImageData(playing_column, 0, 1, canvas.height);
         context.fillRect(playing_column, 0, 1, canvas.height);
     }
+    function start_playing_at_column(x){
+        if (audio_source !== undefined  &&
+            audio_source.playbackState !== audio_source.FINISHED_STATE){
+            audio_source.stop(0);
+        }
+        audio_source = audio_context.createBufferSource();
+        audio_source.buffer = native_audio;
+        audio_source.connect(audio_context.destination);
+        audio_source.start(0, x * pixel2sec);
+        if (hidden_data !== undefined && playing_column !== undefined){
+            context.putImageData(hidden_data, playing_column, 0);
+        }
+        playing_column = x;
+        context.fillStyle = "#ff3";
+        hidden_data = context.getImageData(x, 0, 1, canvas.height);
+        context.fillRect(x, 0, 1, canvas.height);
+        if (playing_column_interval !== undefined){
+            window.clearInterval(playing_column_interval);
+        }
+        playing_column_interval = window.setInterval(advance_playing_line,
+                                                     pixel2sec * 1000);
+        audio_source.onended = function(id){
+            return function(){
+                window.clearInterval(id);
+            };
+        }(playing_column_interval);
+    }
+
     canvas.onclick = function(e){
         if (e.shiftKey){
             var x = e.pageX - this.offsetLeft;
-            if (audio_source){
-                audio_source.stop(0);
-            }
-            console.log(x * pixel2sec);
-            audio_source = audio_context.createBufferSource();
-            audio_source.buffer = native_audio;
-            audio_source.connect(audio_context.destination);
-            audio_source.start(0, x * pixel2sec);
-            if (hidden_data !== undefined && playing_column !== undefined){
-                context.putImageData(hidden_data, playing_column, 0);
-            }
-            playing_column = x;
-            context.fillStyle = "#ff3";
-            hidden_data = context.getImageData(x, 0, 1, canvas.height);
-            context.fillRect(x, 0, 1, canvas.height);
-            playing_column_interval = window.setInterval(advance_playing_line,
-                                                         pixel2sec * 1000);
-            audio_source.onended = function(id){
-                return function(){
-                    window.clearInterval(id);
-                };
-            }(playing_column_interval);
+            start_playing_at_column(x);
         }
     };
 
@@ -194,22 +204,11 @@ function fill_canvas(audio, samplerate, native_audio){
             switch_colour(c);
         }
         else if (c == ' '){
-            if ((audio_source === undefined  ||
-                audio_source.playbackState == audio_source.FINISHED_STATE) &&
-                playing_column !== undefined){
-                audio_source = audio_context.createBufferSource();
-                audio_source.buffer = native_audio;
-                audio_source.connect(audio_context.destination);
-                audio_source.start(0, playing_column * pixel2sec);
-                playing_column_interval = window.setInterval(advance_playing_line,
-                                                             pixel2sec * 1000);
-                audio_source.onended = function(id){
-                    return function(){
-                        window.clearInterval(id);
-                    };
-                }(playing_column_interval);
+            if (audio_source === undefined ||
+                audio_source.playbackState == audio_source.FINISHED_STATE){
+                start_playing_at_column(playing_column);
             }
-            else if (audio_source !== undefined){
+            else {
                 audio_source.stop(0);
             }
         }
