@@ -103,6 +103,9 @@ function fill_canvas(audio, samplerate, native_audio){
         context.putImageData(data, 0, 0);
     }
     var drawing = 0;
+    var playing_column = -1;
+    var hidden_data;
+    var playing_column_interval;
     var colour = COLOUR_LUT['m'];
     var colour_label = document.getElementById("colour-m");
     colour_label.style.background = "#fc0";
@@ -125,6 +128,12 @@ function fill_canvas(audio, samplerate, native_audio){
             return function(){switch_colour(x);};
         }(c);
     }
+    function advance_playing_line(){
+        context.putImageData(hidden_data, playing_column, 0);
+        playing_column++;
+        hidden_data = context.getImageData(playing_column, 0, 1, canvas.height);
+        context.fillRect(playing_column, 0, 1, canvas.height);
+    }
     canvas.onclick = function(e){
         if (e.shiftKey){
             var x = e.pageX - this.offsetLeft;
@@ -139,6 +148,12 @@ function fill_canvas(audio, samplerate, native_audio){
             audio_source.buffer = native_audio;
             audio_source.connect(audio_context.destination);
             audio_source.start(0, x * pixel2sec);
+            playing_column = x;
+            context.fillStyle = "#ff3";
+            hidden_data = context.getImageData(x, 0, 1, canvas.height);
+            context.fillRect(x, 0, 1, canvas.height);
+            playing_column_interval = window.setInterval(advance_playing_line,
+                                                         pixel2sec * 1000);
         }
     };
 
