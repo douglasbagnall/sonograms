@@ -141,19 +141,24 @@ function fill_canvas(audio, samplerate, native_audio){
                 audio_source.stop(0);
             }
             console.log(x * pixel2sec);
-            /*audio_source.onended = function(){
-                audio_source = undefined;
-            };*/
             audio_source = audio_context.createBufferSource();
             audio_source.buffer = native_audio;
             audio_source.connect(audio_context.destination);
             audio_source.start(0, x * pixel2sec);
+            if (hidden_data !== undefined && playing_column !== undefined){
+                context.putImageData(hidden_data, playing_column, 0);
+            }
             playing_column = x;
             context.fillStyle = "#ff3";
             hidden_data = context.getImageData(x, 0, 1, canvas.height);
             context.fillRect(x, 0, 1, canvas.height);
             playing_column_interval = window.setInterval(advance_playing_line,
                                                          pixel2sec * 1000);
+            audio_source.onended = function(id){
+                return function(){
+                    window.clearInterval(id);
+                };
+            }(playing_column_interval);
         }
     };
 
@@ -185,7 +190,29 @@ function fill_canvas(audio, samplerate, native_audio){
     };
     document.onkeypress = function(e){
         var c = String.fromCharCode(e.charCode);
-        switch_colour(c);
+        if (COLOUR_LUT[c] !== undefined){
+            switch_colour(c);
+        }
+        else if (c == ' '){
+            if ((audio_source === undefined  ||
+                audio_source.playbackState == audio_source.FINISHED_STATE) &&
+                playing_column !== undefined){
+                audio_source = audio_context.createBufferSource();
+                audio_source.buffer = native_audio;
+                audio_source.connect(audio_context.destination);
+                audio_source.start(0, playing_column * pixel2sec);
+                playing_column_interval = window.setInterval(advance_playing_line,
+                                                             pixel2sec * 1000);
+                audio_source.onended = function(id){
+                    return function(){
+                        window.clearInterval(id);
+                    };
+                }(playing_column_interval);
+            }
+            else if (audio_source !== undefined){
+                audio_source.stop(0);
+            }
+        }
     };
 }
 
