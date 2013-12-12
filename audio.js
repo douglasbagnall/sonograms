@@ -60,7 +60,6 @@ function fill_canvas(audio, samplerate, native_audio){
     var audio_source;
     var window_size = 1024;
     var fft = new FFT(window_size, samplerate);
-    //context.fillRect(50, 25, 150, 100);
     var imgdata = context.createImageData(canvas.width, canvas.height);
     var pixels = imgdata.data;
     var i;
@@ -78,16 +77,15 @@ function fill_canvas(audio, samplerate, native_audio){
             data_window[i] = square_window[i] * mask_window[i];
         }
         fft.forward(data_window);
-        var s = fft.spectrum;
-        for (i = canvas.height - 1; i >= 0; i--){
+        var s = fft.spectrum; /*power spectrum, normalised somehow*/
+        for (i = canvas.height - 1; i >= 0; i --){
             var o = ((canvas.height - i - 1) * width + col) * 4;
-            var v = s[i] * s[i] + s[i + 1] * s[i + 1];
-            pixels[o] = v * 3e8;
-            pixels[o + 1] = Math.sqrt(v) * 1e5;
-            pixels[o + 2] = Math.pow(v, 0.25) * 1e3;
+            var v = s[i];
+            pixels[o] = v * v * 3e8;
+            pixels[o + 1] = v * 1e5;
+            pixels[o + 2] = Math.sqrt(v) * 3e3;
             pixels[o + 3] = 255;
         }
-        //console.log(col, v, s[200], spacing, pixels[o]);
     }
     context.putImageData(imgdata, 0, 0);
     function refill_background(){
@@ -140,9 +138,6 @@ function fill_canvas(audio, samplerate, native_audio){
     function stop_playing(){
         if (audio_source !== undefined){
             audio_source.stop(0);
-        }
-        if (playing_column_interval !== undefined){
-            window.clearInterval(playing_column_interval);
         }
         audio_source = undefined;
     }
