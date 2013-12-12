@@ -137,11 +137,18 @@ function fill_canvas(audio, samplerate, native_audio){
         hidden_data = context.getImageData(playing_column, 0, 1, canvas.height);
         context.fillRect(playing_column, 0, 1, canvas.height);
     }
-    function start_playing_at_column(x){
-        if (audio_source !== undefined  &&
-            audio_source.playbackState !== audio_source.FINISHED_STATE){
+    function stop_playing(){
+        if (audio_source !== undefined){
             audio_source.stop(0);
         }
+        if (playing_column_interval !== undefined){
+            window.clearInterval(playing_column_interval);
+        }
+        audio_source = undefined;
+    }
+
+    function start_playing_at_column(x){
+        stop_playing();
         audio_source = audio_context.createBufferSource();
         audio_source.buffer = native_audio;
         audio_source.connect(audio_context.destination);
@@ -153,9 +160,6 @@ function fill_canvas(audio, samplerate, native_audio){
         context.fillStyle = "#ff3";
         hidden_data = context.getImageData(x, 0, 1, canvas.height);
         context.fillRect(x, 0, 1, canvas.height);
-        if (playing_column_interval !== undefined){
-            window.clearInterval(playing_column_interval);
-        }
         playing_column_interval = window.setInterval(advance_playing_line,
                                                      pixel2sec * 1000);
         audio_source.onended = function(id){
@@ -204,12 +208,11 @@ function fill_canvas(audio, samplerate, native_audio){
             switch_colour(c);
         }
         else if (c == ' '){
-            if (audio_source === undefined ||
-                audio_source.playbackState == audio_source.FINISHED_STATE){
+            if (audio_source === undefined){
                 start_playing_at_column(playing_column);
             }
             else {
-                audio_source.stop(0);
+                stop_playing();
             }
         }
     };
