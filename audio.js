@@ -9,6 +9,7 @@ var COLOUR_LUT = {
     e: "#000"
 };
 
+
 var audio_context;
 
 function parse_wav(raw){
@@ -59,6 +60,8 @@ function fill_canvas(audio, samplerate, native_audio){
     var pixel2sec = native_audio.duration / width;
     var audio_source;
     var window_size = 1024;
+    var fft_downsample = 2;
+
     var fft = new FFT(window_size, samplerate);
     var imgdata = context.createImageData(canvas.width, canvas.height);
     var pixels = imgdata.data;
@@ -71,6 +74,9 @@ function fill_canvas(audio, samplerate, native_audio){
         mask_window[i] = 0.5 - 0.5 * Math.cos(tau_norm * i);
     }
 
+    var window_floor = 200;
+    var spectrum_low = 10;
+    var spectrum_high = 210;
     for (left = 0, col = 0; left + window_size < audio.length; left += spacing, col++){
         var square_window = audio.subarray(left, left + window_size);
         for (i = 0; i < window_size; i++){
@@ -78,12 +84,13 @@ function fill_canvas(audio, samplerate, native_audio){
         }
         fft.forward(data_window);
         var s = fft.spectrum; /*power spectrum, normalised somehow*/
-        for (i = canvas.height - 1; i >= 0; i --){
-            var o = ((canvas.height - i - 1) * width + col) * 4;
-            var v = s[i];
-            pixels[o] = v * v * 3e8;
-            pixels[o + 1] = v * 1e5;
-            pixels[o + 2] = Math.sqrt(v) * 3e3;
+        for (i = spectrum_low; i < spectrum_high; i++){
+            var o = ((window_floor + spectrum_low - i) * width + col) * 4;
+            var v = s[i * 2] + s[i * 2 + 1];
+            //console.log(i, o, v);
+            pixels[o] = v * v * 7e8;
+            pixels[o + 1] = v * 3e5;// + Math.sin(v * 1e3) * 50;
+            pixels[o + 2] = Math.sqrt(v) * 6e3;
             pixels[o + 3] = 255;
         }
     }

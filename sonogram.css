@@ -1,7 +1,8 @@
 
-#canvas, #fft {
+#fft {
   border: 1px solid black;
   cursor: crosshair;
+  background: #000;
 }
 
 #instructions {
