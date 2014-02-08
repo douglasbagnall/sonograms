@@ -6,6 +6,8 @@ var COLOUR_LUT = {
     k: "#0ff",
     m: "#f00",
     f: "#0f0",
+    r: "#ff0",
+    n: "#f0f",
     e: "#000"
 };
 
@@ -61,15 +63,15 @@ function hann_window(length){
     return window;
 }
 
-function paint_spectrogram(audio, window_size, samplerate, pixels, width, height){
+function paint_spectrogram(audio, window_size, samplerate, pixels, width, height,
+                           row_height){
     var i;
     var left, col, row;
     var fft = new FFT(window_size, samplerate);
     var spacing = 120 * samplerate / (width); /* fit 2 minutes across */
     var mask_window = hann_window(window_size);
     var data_window = new Float32Array(window_size);
-    var window_floor = 180;
-    var window_spacing = 200;
+    var window_padding = 10;
     var spectrum_low = 20;
     var spectrum_high = 200;
     var pixwidth = width * 4;
@@ -87,7 +89,7 @@ function paint_spectrogram(audio, window_size, samplerate, pixels, width, height
             row++;
             console.log(col, row);
         }
-        var base_offset = ((row * window_spacing + window_floor) * width + col) * 4;
+        var base_offset = (((row + 1) * row_height + window_padding) * width + col) * 4;
         for (i = spectrum_low; i < spectrum_high; i++){
             var o = base_offset - i * pixwidth;
             var v = s[i * 2] + s[i * 2 + 1];
@@ -114,7 +116,7 @@ function fill_canvas(audio, samplerate, native_audio){
     var pixels = imgdata.data;
 
     paint_spectrogram(audio, window_size, samplerate,
-                      pixels, canvas.width, canvas.height);
+                      pixels, canvas.width, canvas.height, row_height);
     context.putImageData(imgdata, 0, 0);
 
     function refill_background(){
@@ -130,8 +132,8 @@ function fill_canvas(audio, samplerate, native_audio){
         context.putImageData(data, 0, 0);
     }
     var drawing = 0;
-    var playing_column = -1;
-    var playing_row = -1;
+    var playing_column = 0;
+    var playing_row = 0;
     var hidden_data;
     var playing_column_interval;
     var colour = COLOUR_LUT['m'];
@@ -237,13 +239,14 @@ function fill_canvas(audio, samplerate, native_audio){
         if (COLOUR_LUT[c] !== undefined){
             switch_colour(c);
         }
-        else if (c == ' '){
+        else if (c == ' ' || c == 'p'){
             if (audio_source === undefined){
-                start_playing_at_point(playing_column, playing_row);
+                start_playing_at_point(playing_column, playing_row * row_height);
             }
             else {
                 stop_playing();
             }
+            e.preventDefault();
         }
     };
 }

@@ -33,7 +33,20 @@
   background: #0f0;
   color: #000;
 }
+#colour-r b {
+  background: #ff0;
+  color: #000;
+}
+#colour-n b {
+  background: #f0f;
+  color: #000;
+}
 #colour-e b {
   background: #000;
   color: #fff;
+}
+#colour-p b {
+  background: #fff;
+  color: #000;
+  border:1px solid #666;
 }
