@@ -63,41 +63,61 @@ function hann_window(length){
     return window;
 }
 
-function paint_spectrogram(audio, window_size, samplerate, pixels, width, height,
-                           row_height){
-    var i;
-    var left, col, row;
+function calculate_spectrogram(audio, window_size, samplerate, spacing){
+    var i, left, j;
     var fft = new FFT(window_size, samplerate);
-    var spacing = 120 * samplerate / (width); /* fit 2 minutes across */
     var mask_window = hann_window(window_size);
     var data_window = new Float32Array(window_size);
     var window_padding = 10;
-    var spectrum_low = 20;
-    var spectrum_high = 200;
-    var pixwidth = width * 4;
-    for (left = 0, col = 0, row = 0;
-         left + window_size <= audio.length;
-         left += spacing, col++){
+    var spectrogram_height = parseInt(window_size / 2);
+    var spectrogram_length = parseInt(audio.length / window_size);
+    var spectrogram = new Float32Array(spectrogram_length * spectrogram_height);
+    for (j = 0; j < spectrogram_length; j++){
+        left = j * spacing;
         var square_window = audio.subarray(left, left + window_size);
         for (i = 0; i < window_size; i++){
             data_window[i] = square_window[i] * mask_window[i];
         }
         fft.forward(data_window);
-        var s = fft.spectrum; /*power spectrum, normalised somehow*/
-        if (col >= width){
-            col -= width;
-            row++;
-            console.log(col, row);
-        }
+        spectrogram.set(fft.spectrum, j * spectrogram_height);
+    }
+    return {
+        width: spectrogram_length,
+        height: spectrogram_height,
+        data: spectrogram
+    };
+}
+
+
+function paint_spectrogram(spectrogram, pixels, width, height,
+                           row_height){
+    var i;
+    var left, col, row;
+    var window_padding = 10;
+    var spectrum_low = 20;
+    var spectrum_high = 200;
+    var pixwidth = width * 4;
+    var s_data = spectrogram.data;
+    var s_width = spectrogram.width;
+    var s_height = spectrogram.height;
+    for (j = 0, col = 0, row = 0;
+         j < s_width;
+         j++, col++){
+        var x  = j * s_height;
+        var s = s_data.subarray(x, x + s_height);
         var base_offset = (((row + 1) * row_height + window_padding) * width + col) * 4;
         for (i = spectrum_low; i < spectrum_high; i++){
             var o = base_offset - i * pixwidth;
             var v = s[i * 2] + s[i * 2 + 1];
-            //console.log(i, o, v);
             pixels[o] = v * v * 6e8;
             pixels[o + 1] = v * 3e5;// + Math.sin(v * 1e3) * 50;
             pixels[o + 2] = Math.sqrt(v) * 6e3;
             pixels[o + 3] = 255;
+        }
+        if (col >= width){
+            col -= width;
+            row++;
+            console.log(col, row);
         }
     }
 }
@@ -112,12 +132,21 @@ function fill_canvas(audio, samplerate, native_audio){
     canvas.height = height;
     var audio_source;
     var window_size = 1024;
+    var spacing = 120 * samplerate / (width); /* fit 2 minutes across */
+
+    console.time('calculate_spectrogram');
+    var spectrogram = calculate_spectrogram(audio, window_size, samplerate, spacing);
+    console.timeEnd('calculate_spectrogram');
+    console.time('paint_spectrogram');
     var imgdata = context.createImageData(canvas.width, canvas.height);
     var pixels = imgdata.data;
-
-    paint_spectrogram(audio, window_size, samplerate,
+    paint_spectrogram(spectrogram,
                       pixels, canvas.width, canvas.height, row_height);
+    console.timeEnd('paint_spectrogram');
+    console.time('putImageData');
     context.putImageData(imgdata, 0, 0);
+    console.timeEnd('putImageData');
+
 
     function refill_background(){
         var data = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -260,9 +289,7 @@ function message(m){
 function load_audio(url) {
     var AudioContext = window.AudioContext || window.webkitAudioContext;
     if (! AudioContext){
-        message("Web API seems to be missing from this browser.<br>" +
-               "It could almost work like that, but I can't be bothered" +
-               " maintaining it. Expect errors. Sorry!");
+        message("Web API seems to be missing from this browser.");
     }
     /*audio_context is global*/
     audio_context = new AudioContext();
