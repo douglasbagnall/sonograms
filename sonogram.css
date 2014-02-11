@@ -5,6 +5,12 @@
   background: #111;
 }
 
+#debug {
+  border: 1px solid black;
+  cursor: crosshair;
+  background: #000;
+}
+
 #instructions {
   float: left;
   width: 10em;
