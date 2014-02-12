@@ -1,7 +1,10 @@
 Javascript sonographs for visual detection of sounds
 ----------------------------------------------------
 
-This uses the web audio API, so you need a newish browser.
+This is for a very specific task and is quite experimental. In other
+words, it is almost certainly of no interest to you.
+
+It uses the web audio API, so you need a newish browser.
 
 dsp.js
 ======
