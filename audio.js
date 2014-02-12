@@ -1,6 +1,6 @@
 var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
-var URL = wav_15_minute;
+var URL = wav_1_minute;
 
 var COLOUR_LUT = {
     k: "#0ff",
