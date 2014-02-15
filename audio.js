@@ -1,4 +1,6 @@
-var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
+//var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
+//var wav_1_minute = 'moreporks/RFPT-WWMB-20111208230002-240-60-KR3.wav';
+var wav_1_minute = 'moreporks/RFPT-WW17-20111111220002-0-60-KR4.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
 var URL = wav_1_minute;
 
@@ -84,134 +86,142 @@ function vorbis_window(length){
     return window;
 }
 
-function simple_detector(spectrogram, bands){
-    var b, i, j, k;
-    for (i = 0; i < bands.length; i++){
-        b = bands[i];
-        b.intensity = new Float32Array(spectrogram.width);
+
+
+function median(original, low, high){
+    if (high - low < 2){
+        return original[low];
     }
-    var data = spectrogram.data;
-    var h = spectrogram.height;
-    console.log('spec', spectrogram);
-    var hz2iband = function(x) {
-        return parseInt(x / spectrogram.band_width);
-    };
-
-    for (i = 0; i < bands.length; i++){
-        b = bands[i];
-        var good_low = hz2iband(b.good_audio_hz_low);
-        var good_high = hz2iband(b.good_audio_hz_high);
-        var bad_low = hz2iband(b.bad_audio_hz_low);
-        var bad_high = hz2iband(b.bad_audio_hz_high);
-        console.log('good', good_low, good_high,
-                    'bad', bad_low, bad_high
-                    );
-        for (j = 0; j < spectrogram.width; j++){
-            var o = j * h;
-            var window = data.subarray(o, o + h);
-            var good = 0.0;
-            for (k = good_low; k <= good_high; k++){
-                good += window[k];
+    var array = new Float32Array(original.subarray(low, high));
+    var left = 0;
+    var right = array.length;
+    var k = right >>> 1;
+    while (1){
+        var pivot = array[right - 1];
+        var j = left;
+        for (i = left; i < right; i++){
+            var v = array[i];
+            if (v < pivot){
+                array[i] = array[j];
+                array[j] = v;
+                j++;
             }
-            /*Subtract areas thought to be outside the band. This
-             reduces the effect of vertically consistent oscillations
-             like wind noise.*/
-            var bad = 0.0;
+        }
+        array[right - 1] = array[j];
+        array[j] = pivot;
+        var p = j;
 
-            for (k = bad_low; k <= bad_high; k++){
-                bad += window[k];
-            }/*
-            if (bad){
-                bad *= (good_high - good_low) / (bad_high - bad_low);
-            }*/
-            b.intensity[j] = good - bad;
+        if (k == j){
+            return array[k];
+        }
+        if (k < j){
+            right = j;
+        }
+        else {
+            left = j + 1;
         }
     }
+}
 
-    var window_size = 128;
-    var fft = new RFFT(window_size, spectrogram.windows_per_second);
-    var spacing = parseInt(spectrogram.width / (spectrogram.duration * 3));
-    var left;
-    var data_window = new Float32Array(window_size);
-    var mask_window = hann_window(window_size);
-    var score_length = parseInt((spectrogram.width - window_size) / spacing) + 1;
 
-    var hz2band = function(x){
-        return parseInt(x / spectrogram.band_width * spectrogram.windows_per_second);
+function get_morepork_intensity(spectrogram, lf, hf){
+    var i, j;
+    var low_band = spectrogram.hz2band(lf);
+    var top_band = spectrogram.hz2band(hf);
+
+    var series = {
+        peak_minus_med: new Float32Array(spectrogram.width),
+        peak_over_med: new Float32Array(spectrogram.width),
+        peak_index: new Float32Array(spectrogram.width),
+        medians: new Float32Array(spectrogram.width),
+        means: new Float32Array(spectrogram.width),
+        stddevs: new Float32Array(spectrogram.width),
+        peaks: new Float32Array(spectrogram.width),
+        peak_over_mean: new Float32Array(spectrogram.width)
     };
+    for (i = 0; i < spectrogram.width; i++){
+        var peak = 0;
+        var sum = 0;
+        var sumsq = 0;
+        var window = spectrogram.data.subarray(i * spectrogram.height,
+                                               (i + 1) * spectrogram.height);
+        var peak_index = 0;
+        for (j = low_band; j <= top_band; j++){
+            var x = window[j];
+            if (x > peak){
+                peak = x;
+                peak_index = j;
+            }
+            sum += x;
+            sumsq += x * x;
+        }
+        var n = top_band - low_band + 1;
+        var mean = sum / n;
+        var stddev = Math.sqrt((sumsq - sum * mean) / n);
+        var med = median(window, low_band, top_band);
+        series.peak_minus_med[i] = peak - med;
+        series.peak_over_med[i] = peak / med;
+        series.peak_over_mean[i] = peak / mean;
+        series.peaks[i] = peak;
+        series.peak_index[i] = peak_index - low_band;
+        series.means[i] = mean;
+        series.medians[i] = med;
+        series.stddevs[i] = stddev;
+    }
+    series.peak_index_delta = new Float32Array(spectrogram.width);
+    series.peak_index_d2 = new Float32Array(spectrogram.width);
+    series.peak_index_delta[0] = 0;
+    series.peak_index_d2[0] = series.peak_index_d2[1] = 0;
+    series.peak_index_delta[0] = series.peak_index[1] - series.peak_index[0];
+    var d2 = 0;
+    for (i = 2; i < spectrogram.width; i++){
+        var d = series.peak_index[i] - series.peak_index[i - 1];
+        series.peak_index_delta[i] = Math.abs(d);
+        series.peak_index_d2[i] = 1 / (0.1 + d - d2);
+        d2 = d;
+    }
+    return series;
+}
 
-    //var canvas = document.createElement("canvas");
+
+function morepork_detector(spectrogram, lower_freq, upper_freq){
+    var i, j;
+    console.time('morepork intensity');
+    var mdata = get_morepork_intensity(spectrogram, lower_freq, upper_freq);
+    console.timeEnd('morepork intensity');
+    console.time('morepork paint');
+
     var canvas = document.getElementById("debug");
-    canvas.width = score_length;
-    canvas.height = window_size * bands.length;
-    document.body.appendChild(canvas);
     var context = canvas.getContext('2d');
+    var colours = ['#FFFF00', '#FFaa00', '#00cc00', '#FF0011', '#00FFFF', '#FF33FF'];
+    var keys = Object.keys(mdata);
+    keys.sort();
+    var step = canvas.height / keys.length;
+    context.fillStyle = "#ffffff";
 
-    for (i = 0; i < bands.length; i++){
-        b = bands[i];
+    for (j = 0; j < keys.length; j++){
+        var attr = keys[j];
+        var array = mdata[attr];
+        var colour = colours[j];
+        console.log(attr, array[0], colour);
+        context.beginPath();
+        context.strokeStyle = colour;
+        var max = 1e-6;
 
-        var imgdata = context.createImageData(score_length, window_size);
-        var pixels = imgdata.data;
-
-        var syl_low = hz2band(b.good_syl_hz_low);
-        var syl_high = hz2band(b.good_syl_hz_high);
-        var noise_low = hz2band(b.bad_syl_hz_low);
-        var noise_high = hz2band(b.bad_syl_hz_high);
-        console.log(syl_low, syl_high, noise_low, noise_high);
-        b.score = new Float32Array(score_length);
-        for (j = 0; j < score_length; j++){
-            left = j * spacing;
-            var square_window = b.intensity.subarray(left, left + window_size);
-            for (k = 0; k < window_size; k++){
-                data_window[k] = square_window[k] * mask_window[k];
-            }
-            fft.forward(data_window);
-
-            /*there are only a few frequencies that matter:
-             low frequency signal and possibly high frequency contrast */
-            var s = fft.spectrum;
-
-            if (1){
-                var step = imgdata.width * 4;
-                var p = (imgdata.height - 10) * step + 4 * j;
-                console.log(p);
-                for (k = 0; k < s.length; k++, p-= step){
-                    var v2 = s[k] * 2;
-                    var v = Math.sqrt(v2 + 1e-9);
-                    pixels[p] = v2 * 2e4;
-                    pixels[p + 1] = v2 * v * 1e5 + 0.7 / v;
-                    pixels[p + 2] = v * 7e2;
-                    pixels[p + 3] = 255;
-                }
-            }
-
-            k = syl_low;
-            var signal = s[k];
-            for (k++; k <= syl_high; k++){
-                signal = (s[k] > signal) ? s[k] : signal;
-            }
-            var noise = 1e-6;
-            for (k = noise_low; k <= noise_high; k++){
-                noise += s[k];
-                //console.log(k, s[k]);
-            }
-            /*
-            console.log('syl', syl_low, syl_high, signal,
-                        'noise', noise_low, noise_high, noise
-                        );
-             */
-
-            if (isNaN(signal) || isNaN(noise)){
-                console.log(j, syl_low, syl_high, noise_low, noise_high, window_size);
-            }
-            b.score[j] = Math.log(signal / noise);
+        for (i = 0; i < array.length; i++){
+            max = (array[i] > max) ? array[i] : max;
         }
-        console.log(b);
-        context.putImageData(imgdata, 0, window_size * i);
-        context.fillStyle = "#fff";
-        context.fillText(b.name, 10, window_size * i + 40);
+        var scale =  (step - 1) / max;
+        var offset = step * (j + 1);
+
+        context.moveTo(0, offset - array[0] * scale);
+        for (i = 1; i < array.length; i++){
+            context.lineTo(i, offset - 1 - array[i] * scale);
+        }
+        context.stroke();
+        context.fillText(attr, 10, offset - step / 2);
     }
-    return bands;
+    console.timeEnd('morepork paint');
 }
 
 function calculate_spectrogram(audio, window_size, spacing){
@@ -239,7 +249,10 @@ function calculate_spectrogram(audio, window_size, spacing){
         data: spectrogram,
         windows_per_second: audio.samplerate / spacing,
         band_width: audio.samplerate / window_size,
-        duration: audio.duration
+        duration: audio.duration,
+        hz2band: function(x) {
+            return parseInt(x / this.band_width);
+        }
     };
 }
 
@@ -259,9 +272,12 @@ function paint_detectors(bands, canvas, pixels, width_in_seconds, row_height){
 function paint_spectrogram(spectrogram, canvas,
                            row_height,
                            width_in_seconds,
-                           low_band, high_band){
+                           low_hz, high_hz, squash){
     var i, j;
     var left, col, row;
+    squash = squash || 1;
+    var low_band = parseInt(spectrogram.hz2band(low_hz) / squash);
+    var high_band = parseInt(spectrogram.hz2band(high_hz) / squash);
     var context = canvas.getContext('2d');
     var imgdata = context.createImageData(canvas.width, canvas.height);
     var pixels = imgdata.data;
@@ -280,14 +296,15 @@ function paint_spectrogram(spectrogram, canvas,
          j++, col++){
         var x  = j * s_height;
         var s = s_data.subarray(x, x + s_height);
-        var base_offset = (((row + 1) * row_height) * width + col) * 4;
+        var base_offset = ((((row + 1) * row_height) * width + col) * 4  +
+                           low_band * pixwidth);
         for (i = low_band; i < high_band; i++){
             var o = base_offset - i * pixwidth;
-            var v2 = s[i * 2] + s[i * 2 + 1];
+            var v2 = (s[i * squash]);
             var v = Math.sqrt(v2 + 1e-9);
-            pixels[o] = v2 * 2e4;
-            pixels[o + 1] = v2 * v * 1e5 + 0.7 / v;
-            pixels[o + 2] = v * 7e2;
+            pixels[o] = v2 * 1.5e4;
+            pixels[o + 1] = v2 * v * 8e4 + 0.5 / v;
+            pixels[o + 2] = v * 9e2;
             pixels[o + 3] = 255;
         }
         if (col >= width){
@@ -307,7 +324,7 @@ function fill_canvas(audio, native_audio){
     var canvas = document.getElementById('fft');
     var context = canvas.getContext('2d');
     var width = canvas.width;
-    var width_in_seconds = 120;
+    var width_in_seconds = 60;
 
     var pixel2sec = width_in_seconds / width;
     var row_height = 220;
@@ -322,47 +339,16 @@ function fill_canvas(audio, native_audio){
     var spectrogram = calculate_spectrogram(audio, window_size, spacing);
     console.timeEnd('calculate_spectrogram');
     var pixels = paint_spectrogram(spectrogram, canvas, row_height,
-                                   width_in_seconds, 20, 200);
+                                   width_in_seconds, 600, 1500, 1);
 
     console.log(spectrogram);
 
-    var bands = [
-        {name: "morepork",
-         good_audio_hz_low: 750,
-         good_audio_hz_high: 1100,
-         bad_audio_hz_low: 550,
-         bad_audio_hz_high: 700,
-         good_syl_hz_low: 1,
-         good_syl_hz_high: 4,
-         bad_syl_hz_low: 7.5,
-         bad_syl_hz_high: 17.3
-        },
-        {name: "kiwi",
-         good_audio_hz_low: 1400,
-         good_audio_hz_high: 1800,
-         bad_audio_hz_low: 900,
-         bad_audio_hz_high: 1200,
-         good_syl_hz_low: 0.5,
-         good_syl_hz_high: 1.4,
-         bad_syl_hz_low: 7,
-         bad_syl_hz_high: 17
-        },
-        {name: "weka",
-         good_audio_hz_low: 1850,
-         good_audio_hz_high: 2100,
-         bad_audio_hz_low: 1400,
-         bad_audio_hz_high: 1600,
-         good_syl_hz_low: 0.7,
-         good_syl_hz_high: 3,
-         bad_syl_hz_low: 10,
-         bad_syl_hz_high: 20
-        }
-    ];
+    var LOWER_FREQ = 700;
+    var UPPER_FREQ = 1100;
 
-
-    console.time('simple_detector');
-    simple_detector(spectrogram, bands, audio.samplerate);
-    console.timeEnd('simple_detector');
+    console.time('morepork_detector');
+    morepork_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
+    console.timeEnd('morepork_detector');
 
 
     function refill_background(){
