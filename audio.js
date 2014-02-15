@@ -98,6 +98,34 @@ function vorbis_window(length){
     return window;
 }
 
+function padded_array(array, radius){
+    /*extend the ends via reflection*/
+    var padded = new Float32Array(array.length + radius * 2);
+    var i;
+    for (i = 0; i < array.length; i++){
+        padded[radius + i] = array[i];
+    }
+    for (i = 0; i < radius; i++){
+        padded[i] = array[radius - 1 - i];
+        padded[array.length + radius + i] = array[array.length - i - 1];
+    }
+    return padded;
+}
+
+function convolve(array, window){
+    var radius = parseInt(window.length + 1 / 2);
+    var padded = padded_array(array, radius);
+    var out = new Float32Array(array.length);
+    var i, j;
+    for (i = 0; i < array.length; i++){
+        var sum = 0;
+        for (j = 0; j < window.length; j++){
+            sum += padded[i + j] * window[j];
+        }
+        out[i] = sum;
+    }
+    return out;
+}
 
 
 function median(original, low, high){
@@ -135,6 +163,15 @@ function median(original, low, high){
     }
 }
 
+function running_median(array, radius){
+    var out = new Float32Array(array.length);
+    var padded = padded_array(array, radius);
+    var i;
+    for (i = 0; i < array.length; i++){
+        out[i] = median(padded, i, i + 2 * radius + 1);
+    }
+   return out;
+}
 
 function get_morepork_intensity(spectrogram, lf, hf){
     var i, j;
@@ -144,54 +181,71 @@ function get_morepork_intensity(spectrogram, lf, hf){
     var series = {
         peak_minus_med: new Float32Array(spectrogram.width),
         peak_over_med: new Float32Array(spectrogram.width),
-        peak_index: new Float32Array(spectrogram.width),
         medians: new Float32Array(spectrogram.width),
-        means: new Float32Array(spectrogram.width),
-        stddevs: new Float32Array(spectrogram.width),
-        peaks: new Float32Array(spectrogram.width),
-        peak_over_mean: new Float32Array(spectrogram.width)
+        peaks: new Float32Array(spectrogram.width)
     };
+    var peak_index = new Float32Array(spectrogram.width);
     for (i = 0; i < spectrogram.width; i++){
         var peak = 0;
         var sum = 0;
-        var sumsq = 0;
         var window = spectrogram.data.subarray(i * spectrogram.height,
                                                (i + 1) * spectrogram.height);
-        var peak_index = 0;
+        var peak_i = 0;
         for (j = low_band; j <= top_band; j++){
             var x = window[j];
             if (x > peak){
                 peak = x;
-                peak_index = j;
+                peak_i = j;
             }
-            sum += x;
-            sumsq += x * x;
         }
         var n = top_band - low_band + 1;
-        var mean = sum / n;
-        var stddev = Math.sqrt((sumsq - sum * mean) / n);
         var med = median(window, low_band, top_band);
         series.peak_minus_med[i] = peak - med;
         series.peak_over_med[i] = peak / med;
-        series.peak_over_mean[i] = peak / mean;
         series.peaks[i] = peak;
-        series.peak_index[i] = peak_index - low_band;
-        series.means[i] = mean;
+        peak_index[i] = peak_i - low_band;
         series.medians[i] = med;
-        series.stddevs[i] = stddev;
+        //series.stddevs[i] = stddev;
     }
+    var smooth_window = hann_window(7);
+    var smooth_window11 = hann_window(11);
+    series.smoothed_medians = convolve(series.medians, smooth_window11);
+    series.median_of_smoothed_medians = running_median(series.smoothed_medians, 50);
+    series.median_of_medians = running_median(series.medians, 50);
+    //series.smoothed_mom = convolve(series.median_of_medians, smooth_window11);
+    series.smoothed_peaks_over_medians = convolve(series.peak_over_med, smooth_window);
     series.peak_index_delta = new Float32Array(spectrogram.width);
     series.peak_index_d2 = new Float32Array(spectrogram.width);
+    series.peak_index_d3 = new Float32Array(spectrogram.width);
     series.peak_index_delta[0] = 0;
     series.peak_index_d2[0] = series.peak_index_d2[1] = 0;
-    series.peak_index_delta[0] = series.peak_index[1] - series.peak_index[0];
+    series.peak_index_delta[0] = peak_index[1] - peak_index[0];
     var d2 = 0;
+
     for (i = 2; i < spectrogram.width; i++){
-        var d = series.peak_index[i] - series.peak_index[i - 1];
+        var d = peak_index[i] - peak_index[i - 1];
         series.peak_index_delta[i] = Math.abs(d);
-        series.peak_index_d2[i] = 1 / (0.1 + d - d2);
+        series.peak_index_d2[i] = Math.abs(d - d2);
+        series.peak_index_d3[i] = Math.abs(d2 * d);
         d2 = d;
     }
+    series.smoothed_d3 = convolve(series.peak_index_d3, smooth_window11);
+    series.median_d3 = running_median(series.peak_index_d3, 7);
+
+    series.spom_over_smom = new Float32Array(spectrogram.width);
+    for (i = 0; i < spectrogram.width; i++){
+        series.spom_over_smom[i] = (series.smoothed_peaks_over_medians[i] /
+                series.median_of_medians[i]);
+    }
+    series.bin_sos = new Float32Array(spectrogram.width);
+    series.bin_d3 = new Float32Array(spectrogram.width);
+    for (i = 0; i < spectrogram.width; i++){
+        series.bin_sos[i] = (series.spom_over_smom[i] > 1800);
+        series.bin_d3[i] = (series.smoothed_d3[i]  < 50);
+    }
+
+
+
     return series;
 }
 
@@ -214,7 +268,7 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
     for (j = 0; j < keys.length; j++){
         var attr = keys[j];
         var array = mdata[attr];
-        var colour = colours[j];
+        var colour = colours[j % colours.length];
         console.log(attr, array[0], colour);
         context.beginPath();
         context.strokeStyle = colour;
@@ -239,8 +293,8 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
 function calculate_spectrogram(audio, window_size, spacing){
     var i, left, j;
     var fft = new RFFT(window_size, audio.samplerate);
-    //var mask_window = hann_window(window_size);
-    var mask_window = vorbis_window(window_size);
+    var mask_window = hann_window(window_size);
+    //var mask_window = vorbis_window(window_size);
     var data_window = new Float32Array(window_size);
     var window_padding = 10;
     var height = parseInt(window_size / 2);
