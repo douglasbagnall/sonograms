@@ -68,8 +68,14 @@ function hann_window(length){
     var i;
     var window = new Float32Array(length);
     var tau_norm = Math.PI * 2 / length;
+    var sum = 0;
     for (i = 0; i < length; i++){
-        window[i] = 0.5 - 0.5 * Math.cos(tau_norm * i);
+        var x = 0.5 - 0.5 * Math.cos(tau_norm * i);
+        window[i] = x;
+        sum += x;
+    }
+    for (i = 0; i < length; i++){
+        window[i] /= sum;
     }
     return window;
 }
@@ -79,9 +85,15 @@ function vorbis_window(length){
     var window = new Float32Array(length);
     var pi_norm = Math.PI / length;
     var half_pi = Math.PI / 2;
+    var sum = 0;
     for (i = 0; i < length; i++){
       var z = pi_norm * (i + 0.5);
-      window[i] = Math.sin(half_pi * Math.sin(z) * Math.sin(z));
+      var x = Math.sin(half_pi * Math.sin(z) * Math.sin(z));
+      window[i] = x;
+      sum += x;
+    }
+    for (i = 0; i < length; i++){
+        window[i] /= sum;
     }
     return window;
 }
@@ -296,15 +308,15 @@ function paint_spectrogram(spectrogram, canvas,
          j++, col++){
         var x  = j * s_height;
         var s = s_data.subarray(x, x + s_height);
-        var base_offset = ((((row + 1) * row_height) * width + col) * 4  +
-                           low_band * pixwidth);
+        var base_offset = ((row * row_height * width + col) * 4  +
+                           low_band * pixwidth + (high_band - low_band) * pixwidth);
         for (i = low_band; i < high_band; i++){
             var o = base_offset - i * pixwidth;
-            var v2 = (s[i * squash]);
-            var v = Math.sqrt(v2 + 1e-9);
-            pixels[o] = v2 * 1.5e4;
-            pixels[o + 1] = v2 * v * 8e4 + 0.5 / v;
-            pixels[o + 2] = v * 9e2;
+            var v2 = s[i * squash];
+            var v = Math.sqrt(v2 + 1e-7);
+            pixels[o] = v2 * 1e6 + v2 * v2 * 2e6;
+            pixels[o + 1] = v2 / (v + 0.03) * 6e4 - v * 1e4;
+            pixels[o + 2] = v * 1e4 - v2 * v * 3e7;
             pixels[o + 3] = 255;
         }
         if (col >= width){
