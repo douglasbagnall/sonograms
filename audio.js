@@ -1,8 +1,8 @@
 //var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
-//var wav_1_minute = 'moreporks/RFPT-WWMB-20111208230002-240-60-KR3.wav';
-var wav_1_minute = 'moreporks/RFPT-WW17-20111111220002-0-60-KR4.wav';
+var wav_1_minute = 'moreporks/RFPT-WWMB-20111208230002-240-60-KR3.wav';
+//var wav_1_minute = 'moreporks/RFPT-WW17-20111111220002-0-60-KR4.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
-var URL = wav_1_minute;
+var URL = wav_15_minute;
 
 var MOREPORK_DEBUG = 0;
 
@@ -263,8 +263,7 @@ var TARGET_LENGTH = 0.72;
 var TARGET_GAP = 0.24;
 var TARGET_LEFT = 0.28;
 var TARGET_RIGHT = 0.20;
-var THRESHOLD_GOOD = 1.0;
-var THRESHOLD_MAYBE = 1.5;
+var THRESHOLD_MAYBE = 1.2;
 var THRESHOLD = 2;
 var STOP_TRYING_THRESHOLD = 50;
 var MAX_RIGHT_SEARCH = 0.6; /*biggest syllable gap in seconds*/
@@ -292,13 +291,13 @@ function analyse_call(series, l_start, l_stop, r_start, r_stop){
         intensity_right += series.signal_over_background[i];
     }
     intensity_right /= r_len;
-    console.log('jumpiness', jumpiness);
-    console.log('intensity_left', intensity_left);
-    console.log('intensity_right', intensity_right);
-
+    if (0){
+        console.log('jumpiness', jumpiness, 'intensity_left', intensity_left,
+            'intensity_right', intensity_right);
+    }
     var score = jumpiness * 2e-4;
-    score += 1 / intensity_left;
-    score += 0.7 / intensity_right;
+    score += 0.9 / intensity_left;
+    score += 0.5 / intensity_right;
     return score;
 }
 
@@ -329,7 +328,6 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
     if (prev  == i - 1){
         left_calls.push([start, i]);
     }
-    console.log('left calls', left_calls);
 
     var candidates = [];
     var max_right_search = parseInt(MAX_RIGHT_SEARCH * windows_per_second);
@@ -339,7 +337,6 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
         var l_stop = left_calls[i][1];
         var in_call = false;
         var r_start, r_stop;
-        //console.log('looking from ' + l_stop);
         var max_i = l_stop + 1;
         var max = samples[max_i];
         for (j = l_stop + 2;
@@ -376,25 +373,31 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
         var right_err = Math.pow(right_stop - right_start - TARGET_RIGHT, 2);
         var magic_err = analyse_call(series, l_start, l_stop, r_start, r_stop);
         var err = overall_err * 4 + left_err * 2 + gap_err * 2 + right_err + magic_err;
-        console.log(left_start, right_stop, err, overall_err, left_err,
-                    gap_err, right_err, magic_err);
-        candidates.push([err, left_start, right_stop, l_start, r_stop]);
+        if(0){
+            console.log(left_start, right_stop, err, overall_err, left_err,
+                        gap_err, right_err, magic_err);
+        }
+        candidates.push({
+                score: err,
+                left_sec: left_start,
+                right_sec: right_stop,
+                left_pix: l_start,
+                right_pix: r_stop,
+                selected: err < THRESHOLD_MAYBE
+        });
     }
-    candidates.sort(function(a, b){return a[0] - b[0]});
+    candidates.sort(function(a, b){return a.score - b.score});
     console.log('candidates', candidates);
     var winners = [];
     for (i = 0; i < candidates.length; i++){
         var c = candidates[i];
-        var score = c[0];
-        if (score > THRESHOLD){
+        if (c.score > THRESHOLD){
             break;
         }
-        var s = c[1];
-        var e = c[2];
         var fail = false;
         for (j = 0; j < winners.length; j++){
             var w = winners[j];
-            if (s < w[2] && e > w[1]){
+            if (c.left_pix < w.right_pix && c.right_pix > w.left_pix){
                 console.debug(c, ' overlaps with ', w);
                 fail = true;
                 break;
@@ -404,7 +407,7 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
             winners.push(c);
         }
     }
-    winners.sort(function(a, b){return a[1] - b[1]});
+    winners.sort(function(a, b){return a.left_pix - b.left_pix});
     return winners;
 }
 
@@ -466,11 +469,16 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
         series.all_winners = new Float32Array(spectrogram.width);
         for (i = 0; i < winners.length; i++){
             var w = winners[i];
-            for (j = w[3] ; j < w[4]; j++){
-                series.all_winners[j] = THRESHOLD - w[0];
+            for (j = w.left_pix ; j < w.right_pix; j++){
+                series.all_winners[j] = THRESHOLD - w.score;
             }
         }
         morepork_debug(series);
+    }
+    else {
+        var el = document.getElementById("debug");
+        el.style.display = "none";
+
     }
     return winners;
 }
@@ -478,8 +486,8 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
 function calculate_spectrogram(audio, window_size, spacing){
     var i, left, j;
     var fft = new RFFT(window_size, audio.samplerate);
-    var mask_window = hann_window(window_size);
-    //var mask_window = vorbis_window(window_size);
+    //var mask_window = hann_window(window_size);
+    var mask_window = vorbis_window(window_size);
     var data_window = new Float32Array(window_size);
     var window_padding = 10;
     var height = parseInt(window_size / 2);
@@ -561,16 +569,24 @@ function paint_spectrogram(spectrogram, canvas,
     return pixels;
 }
 
-function draw_one_morepork(left, right, score, row_height, colour){
+
+function draw_one_morepork(m, row_height, erase){
     var canvas = document.getElementById('drawing');
     var context = canvas.getContext('2d');
     var width = canvas.width;
-    var l_row = parseInt(left / width);
-    var l_col = parseInt(left % width);
-    var r_row = parseInt(right / width);
-    var r_col = parseInt(right % width);
+    var l_row = parseInt(m.left_pix / width);
+    var l_col = parseInt(m.left_pix % width);
+    var r_row = parseInt(m.right_pix / width);
+    var r_col = parseInt(m.right_pix % width);
     var y;
-    var cross_bar = 40 - 30 * score / THRESHOLD;
+    var cross_bar = 40 - 30 * m.score / THRESHOLD;
+    var comp_op = context.globalCompositeOperation;
+    var colour = m.selected ? "#33ff00" : "#ff0000";
+    if (erase){
+        //colour = "rgba(255,255,255,255)";
+        colour = "#ffffff";
+        context.globalCompositeOperation = "destination-out";
+    }
     context.beginPath();
     context.strokeStyle = colour;
     context.lineWidth = 1.5;
@@ -595,6 +611,7 @@ function draw_one_morepork(left, right, score, row_height, colour){
         context.lineTo(r_col, y - 50);
     }
     context.stroke();
+    context.globalCompositeOperation = comp_op;
 }
 
 function draw_moreporks(moreporks, row_height, width_in_seconds){
@@ -602,21 +619,10 @@ function draw_moreporks(moreporks, row_height, width_in_seconds){
 
     for (i = 0; i < moreporks.length; i++){
         var m = moreporks[i];
-        var score = m[0];
-        var left = m[3];
-        var right = m[4];
-        var colour;
-        if (score < THRESHOLD_MAYBE){
-            colour = "#33ff00";
-        }
-        else {
-            colour = "#ff0000";
-        }
-        draw_one_morepork(left, right, score, row_height, colour);
+        draw_one_morepork(m, row_height);
     }
 
 }
-
 
 function fill_canvas(audio, native_audio){
     var fftcanvas = document.getElementById('fft');
@@ -633,7 +639,7 @@ function fill_canvas(audio, native_audio){
     topcanvas.height = height;
     var audio_source;
     var window_size = 1024;
-    var spacing = width_in_seconds * audio.samplerate / width; /* fit 2 minutes across */
+    var spacing = width_in_seconds * audio.samplerate / width;
 
     console.time('calculate_spectrogram');
     var spectrogram = calculate_spectrogram(audio, window_size, spacing);
@@ -677,21 +683,22 @@ function fill_canvas(audio, native_audio){
         audio_source = undefined;
     }
 
-    function start_playing_at_point(x, y){
+    function start_playing_at_pos(p){
         stop_playing();
         audio_source = audio_context.createBufferSource();
         audio_source.buffer = native_audio;
         audio_source.connect(audio_context.destination);
-        var row = parseInt(y / row_height);
-        audio_source.start(0, x * pixel2sec + row * width_in_seconds);
+        var row = parseInt(p / topcanvas.width);
+        var col = parseInt(p % topcanvas.width);
+        audio_source.start(0, col * pixel2sec + row * width_in_seconds);
         if (hidden_data !== undefined && playing_column !== undefined){
             context.putImageData(hidden_data, playing_column, playing_row * row_height);
         }
-        playing_column = x;
+        playing_column = col;
         playing_row = row;
         context.fillStyle = "#ff3";
-        hidden_data = context.getImageData(x, row * row_height, 1, row_height);
-        context.fillRect(x, row * row_height, 1, row_height);
+        hidden_data = context.getImageData(col, row * row_height, 1, row_height);
+        context.fillRect(col, row * row_height, 1, row_height);
         playing_column_interval = window.setInterval(advance_playing_line,
                                                      pixel2sec * 1000);
         audio_source.onended = function(id){
@@ -701,44 +708,116 @@ function fill_canvas(audio, native_audio){
         }(playing_column_interval);
     }
 
+
+
+    function get_pos(e){
+        var position = topcanvas.getBoundingClientRect();
+        var x = e.clientX - position.left;
+        var y = e.clientY - position.top;
+        var row = parseInt(y / row_height);
+        var pos =  {
+            x: x,
+            y: y,
+            row: row,
+            ry: parseInt(y % row_height),
+            pos: row * topcanvas.width + x
+        };
+        return pos;
+    }
+
     topcanvas.onclick = function(e){
-        if (e.shiftKey){
-            var x = e.pageX - this.offsetLeft;
-            var y = e.pageY - this.offsetTop;
-            start_playing_at_point(x, y);
+        var p = get_pos(e);
+        console.log(p);
+        if (p.ry < row_height - 40){
+            start_playing_at_pos(p.pos);
+        }
+        else {
+            var m = undefined;
+            for (var i = 0; i < moreporks.length; i++){
+                var mm = moreporks[i];
+                if (p.pos >= mm.left_pix && p.pos <= mm.right_pix){
+                    m = mm;
+                    break;
+                }
+            }
+            if (m === undefined){
+                if (e.ctrlKey){
+                    var left = p.pos - 7, right = p.pos + 7;
+                    moreporks.push({
+                        score: THRESHOLD,
+                        left_sec: left * pixel2sec,
+                        right_sec: right * pixel2sec,
+                        left_pix: left,
+                        right_pix: right,
+                        selected: 1
+                    });
+                }
+            }
+            else if (e.ctrlKey){
+                draw_one_morepork(m, row_height, 1);
+                m.right_pix++;
+                m.right_sec = m.right_pix * pixel2sec;
+                draw_one_morepork(m, row_height);
+            }
+            else if (e.altKey || e.metaKey){
+                draw_one_morepork(m, row_height, 1);
+                m.right_pix--;
+                m.right_sec = m.right_pix * pixel2sec;
+                if (m.right_pix - m.left_pix < 5){
+                    moreporks.splice(i, 1);
+                }
+                else{
+                    draw_one_morepork(m, row_height);
+                }
+            }
+            else {
+                draw_one_morepork(m, row_height, 1);
+                m.selected = ! m.selected;
+                draw_one_morepork(m, row_height);
+            }
+        }
+        e.preventDefault();
+    };
+
+    var drag_start_pos;
+    var draggee;
+    topcanvas.onmousedown = function(e){
+        var p = get_pos(e);
+        if (e.shiftKey && p.ry > row_height - 40){
+            for (var i = 0; i < moreporks.length; i++){
+                var m = moreporks[i];
+                if (p.pos >= m.left_pix && p.pos <= m.right_pix){
+                    console.log("beginning shift");
+                    m.selected = ! m.selected;
+                    draw_one_morepork(m, row_height, 1);
+                    drag_start_pos = p.pos;
+                    draggee = m;
+                    break;
+                }
+            }
         }
     };
 
-    function draw_to(x, y, colour){
-        context.lineTo(x, y);
-        context.stroke();
-    }
-    topcanvas.onmousedown = function(e){
-        if (! e.shiftKey){
-            drawing = 1;
-            var x = e.pageX - this.offsetLeft;
-            var y = e.pageY - this.offsetTop;
-            context.beginPath();
-            context.lineWidth = 5;
-	    context.lineJoin = 'round';
-            context.moveTo(x, y);
-            draw_to(x, y);
-        }
-    };
     document.onmouseup = function(e){
-        drawing = 0;
-    };
-    topcanvas.onmousemove = function(e){
-        if (drawing){
-            draw_to(e.pageX - this.offsetLeft,
-                    e.pageY - this.offsetTop);
+        var p = get_pos(e);
+        if(drag_start_pos !== undefined){
+            console.log("ending shift");
+            var d = p.pos - drag_start_pos;
+            draggee.left_pix += d;
+            draggee.right_pix += d;
+            draggee.left_sec = draggee.left_pix * pixel2sec;
+            draggee.right_sec = draggee.right_pix * pixel2sec;
+            draw_one_morepork(draggee, row_height);
+            draggee = undefined;
+            drag_start_pos = undefined;
         }
     };
+
     document.onkeypress = function(e){
         var c = String.fromCharCode(e.charCode);
         if (c == ' ' || c == 'p'){
             if (audio_source === undefined){
-                start_playing_at_point(playing_column, playing_row * row_height);
+                start_playing_at_pos(playing_column + playing_row * topcanvas.width);
             }
             else {
                 stop_playing();

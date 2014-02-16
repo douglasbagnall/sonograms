@@ -1,5 +1,12 @@
+body {
+  background: black;
+  color: #ccc;
+}
+
 #content {
-  position:relative;
+  position:absolute;
+  left:40px;
+  top: 40px;
 }
 
 #background {
@@ -20,6 +27,14 @@
   left:0;
   z-index: 11;
 
+  cursor: crosshair;
+}
+
+#cursor {
+  position:absolute;
+  top: 0;
+  left:0;
+  z-index: 1;
   cursor: crosshair;
 }
 
