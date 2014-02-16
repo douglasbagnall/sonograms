@@ -1,8 +1,3 @@
-//var wav_1_minute = 'RFPT-WW13-20111229213002-540-60-KR8.wav';
-var wav_1_minute = 'moreporks/RFPT-WWMB-20111208230002-240-60-KR3.wav';
-//var wav_1_minute = 'moreporks/RFPT-WW17-20111111220002-0-60-KR4.wav';
-var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
-var URL = 'static/wav/' + wav_15_minute;
 
 var MOREPORK_DEBUG = 0;
 
