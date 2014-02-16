@@ -13,7 +13,6 @@ var COLOUR_LUT = {
     e: "#000"
 };
 
-
 var audio_context;
 
 function parse_wav(raw){
@@ -67,7 +66,7 @@ function parse_wav(raw){
 function hann_window(length){
     var i;
     var window = new Float32Array(length);
-    var tau_norm = Math.PI * 2 / length;
+    var tau_norm = Math.PI * 2 / (length - 1);
     var sum = 0;
     for (i = 0; i < length; i++){
         var x = 0.5 - 0.5 * Math.cos(tau_norm * i);
@@ -83,7 +82,7 @@ function hann_window(length){
 function vorbis_window(length){
     var i;
     var window = new Float32Array(length);
-    var pi_norm = Math.PI / length;
+    var pi_norm = Math.PI / (length - 1);
     var half_pi = Math.PI / 2;
     var sum = 0;
     for (i = 0; i < length; i++){
@@ -113,7 +112,7 @@ function padded_array(array, radius){
 }
 
 function convolve(array, window){
-    var radius = parseInt(window.length + 1 / 2);
+    var radius = parseInt((window.length + 1) / 2);
     var padded = padded_array(array, radius);
     var out = new Float32Array(array.length);
     var i, j;
