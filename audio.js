@@ -4,14 +4,7 @@ var wav_1_minute = 'moreporks/RFPT-WW17-20111111220002-0-60-KR4.wav';
 var wav_15_minute = "RFPT-WW10A-2013-02-14T02.00.10-KR5.wav";
 var URL = wav_1_minute;
 
-var COLOUR_LUT = {
-    k: "#0ff",
-    m: "#f00",
-    f: "#0f0",
-    r: "#ff0",
-    n: "#f0f",
-    e: "#000"
-};
+var MOREPORK_DEBUG = 0;
 
 var audio_context;
 
@@ -270,6 +263,8 @@ var TARGET_LENGTH = 0.72;
 var TARGET_GAP = 0.24;
 var TARGET_LEFT = 0.28;
 var TARGET_RIGHT = 0.20;
+var THRESHOLD_GOOD = 1.0;
+var THRESHOLD_MAYBE = 1.5;
 var THRESHOLD = 2;
 var STOP_TRYING_THRESHOLD = 50;
 var MAX_RIGHT_SEARCH = 0.6; /*biggest syllable gap in seconds*/
@@ -413,45 +408,20 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
     return winners;
 }
 
-function morepork_detector(spectrogram, lower_freq, upper_freq){
+function morepork_debug(series){
     var i, j;
-    console.time('morepork intensity');
-    var mdata = get_morepork_intensity(spectrogram, lower_freq, upper_freq);
-    console.timeEnd('morepork intensity');
-
-    var winners;
-    if (USE_CALL_RATIO){
-        winners = find_calls_in_call_diff(mdata,
-        CALL_RATIO_THRESHOLD_LEFT,
-        CALL_RATIO_THRESHOLD_RIGHT, spectrogram.windows_per_second);
-    }
-    else {
-        winners = find_calls_in_call_diff(mdata.signal_minus_background,
-        CALL_DIFF_THRESHOLD_LEFT,
-        CALL_DIFF_THRESHOLD_RIGHT, spectrogram.windows_per_second);
-    };
-    console.log('winners', winners);
-    mdata.all_winners = new Float32Array(spectrogram.width);
-    for (i = 0; i < winners.length; i++){
-        var w = winners[i];
-        for (j = w[3] ; j < w[4]; j++){
-            mdata.all_winners[j] = THRESHOLD - w[0];
-        }
-    }
-
-    console.time('morepork paint');
-
+    console.time('morepork debug');
     var canvas = document.getElementById("debug");
     var context = canvas.getContext('2d');
     var colours = ['#FFFF00', '#FFaa00', '#00cc00', '#FF0011', '#00FFFF', '#FF33FF'];
-    var keys = Object.keys(mdata);
+    var keys = Object.keys(series);
     keys.sort();
     var step = canvas.height / keys.length;
     context.fillStyle = "#ffffff";
 
     for (j = 0; j < keys.length; j++){
         var attr = keys[j];
-        var array = mdata[attr];
+        var array = series[attr];
         var colour = colours[j % colours.length];
         console.log(attr, array[0], colour);
         context.beginPath();
@@ -471,7 +441,38 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
         context.stroke();
         context.fillText(attr, 10, offset - step / 2);
     }
-    console.timeEnd('morepork paint');
+    console.timeEnd('morepork debug');
+}
+
+function morepork_detector(spectrogram, lower_freq, upper_freq){
+    var i, j;
+    console.time('morepork intensity');
+    var series = get_morepork_intensity(spectrogram, lower_freq, upper_freq);
+    console.timeEnd('morepork intensity');
+
+    var winners;
+    if (USE_CALL_RATIO){
+        winners = find_calls_in_call_diff(series,
+        CALL_RATIO_THRESHOLD_LEFT,
+        CALL_RATIO_THRESHOLD_RIGHT, spectrogram.windows_per_second);
+    }
+    else {
+        winners = find_calls_in_call_diff(series.signal_minus_background,
+        CALL_DIFF_THRESHOLD_LEFT,
+        CALL_DIFF_THRESHOLD_RIGHT, spectrogram.windows_per_second);
+    };
+    console.log('winners', winners);
+    if (MOREPORK_DEBUG){
+        series.all_winners = new Float32Array(spectrogram.width);
+        for (i = 0; i < winners.length; i++){
+            var w = winners[i];
+            for (j = w[3] ; j < w[4]; j++){
+                series.all_winners[j] = THRESHOLD - w[0];
+            }
+        }
+        morepork_debug(series);
+    }
+    return winners;
 }
 
 function calculate_spectrogram(audio, window_size, spacing){
@@ -506,18 +507,6 @@ function calculate_spectrogram(audio, window_size, spacing){
     };
 }
 
-function paint_detectors(bands, canvas, pixels, width_in_seconds, row_height){
-    var i, j, b;
-    for (i = 0; i < bands.length; i++){
-        var col, row;
-        for (j = 0, row = 0;
-         j < b.score.length;
-         j++){
-            var base_offset = (((row + 1) * row_height) * width + col) * 4;
-
-        }
-    }
-}
 
 function paint_spectrogram(spectrogram, canvas,
                            row_height,
@@ -572,17 +561,76 @@ function paint_spectrogram(spectrogram, canvas,
     return pixels;
 }
 
-function fill_canvas(audio, native_audio){
-    var canvas = document.getElementById('fft');
+function draw_one_morepork(left, right, score, row_height, colour){
+    var canvas = document.getElementById('drawing');
     var context = canvas.getContext('2d');
     var width = canvas.width;
+    var l_row = parseInt(left / width);
+    var l_col = parseInt(left % width);
+    var r_row = parseInt(right / width);
+    var r_col = parseInt(right % width);
+    var y;
+    var cross_bar = 40 - 30 * score / THRESHOLD;
+    context.beginPath();
+    context.strokeStyle = colour;
+    context.lineWidth = 1.5;
+    if (l_row == r_row){
+        y = (l_row + 1) * row_height;
+        context.moveTo(l_col, y - 50);
+        context.lineTo(l_col, y - 10);
+        context.lineTo(r_col, y - 10);
+        context.lineTo(r_col, y - 50);
+        context.moveTo(l_col, y - cross_bar);
+        context.lineTo(r_col, y - cross_bar);
+    }
+    else {
+        /*It should be safe to assume right row is next row - i.e.
+         the call is less than 1 minute long */
+        y = (l_row + 1) * row_height;
+        context.moveTo(l_col, y - 50);
+        context.lineTo(l_col, y - 10);
+        context.lineTo(width, y - 10);
+        context.moveTo(0, y - 10);
+        context.lineTo(r_col, y - 10);
+        context.lineTo(r_col, y - 50);
+    }
+    context.stroke();
+}
+
+function draw_moreporks(moreporks, row_height, width_in_seconds){
+    var i, j;
+
+    for (i = 0; i < moreporks.length; i++){
+        var m = moreporks[i];
+        var score = m[0];
+        var left = m[3];
+        var right = m[4];
+        var colour;
+        if (score < THRESHOLD_MAYBE){
+            colour = "#33ff00";
+        }
+        else {
+            colour = "#ff0000";
+        }
+        draw_one_morepork(left, right, score, row_height, colour);
+    }
+
+}
+
+
+function fill_canvas(audio, native_audio){
+    var fftcanvas = document.getElementById('fft');
+    var topcanvas = document.getElementById('drawing');
+    var context = fftcanvas.getContext('2d');
+    var width = fftcanvas.width;
     var width_in_seconds = 60;
 
     var pixel2sec = width_in_seconds / width;
     var row_height = 160;
     var height = Math.ceil(audio.samples.length / audio.samplerate /
                            width_in_seconds) * row_height;
-    canvas.height = height;
+    fftcanvas.height = height;
+    topcanvas.height = height;
     var audio_source;
     var window_size = 1024;
     var spacing = width_in_seconds * audio.samplerate / width; /* fit 2 minutes across */
@@ -590,7 +638,7 @@ function fill_canvas(audio, native_audio){
     console.time('calculate_spectrogram');
     var spectrogram = calculate_spectrogram(audio, window_size, spacing);
     console.timeEnd('calculate_spectrogram');
-    var pixels = paint_spectrogram(spectrogram, canvas, row_height,
+    var pixels = paint_spectrogram(spectrogram, fftcanvas, row_height,
                                    width_in_seconds, 600, 1500, 1);
 
     console.log(spectrogram);
@@ -599,53 +647,22 @@ function fill_canvas(audio, native_audio){
     var UPPER_FREQ = 1100;
 
     console.time('morepork_detector');
-    morepork_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
+    var moreporks = morepork_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
     console.timeEnd('morepork_detector');
 
+    draw_moreporks(moreporks, row_height, width_in_seconds);
 
-    function refill_background(){
-        var data = context.getImageData(0, 0, canvas.width, canvas.height);
-        var pix = data.data;
-        for (var i = 0; i < pix.length; i += 4){
-            if (pix[i] == 0 && pix[i + 1] == 0 && pix[i + 2] == 0){
-                pix[i] = pixels[i];
-                pix[i + 1] = pixels[i + 1];
-                pix[i + 2] = pixels[i + 2];
-            }
-        }
-        context.putImageData(data, 0, 0);
-    }
+
     var drawing = 0;
     var playing_column = 0;
     var playing_row = 0;
     var hidden_data;
     var playing_column_interval;
-    var colour = COLOUR_LUT['m'];
-    var colour_label = document.getElementById("colour-m");
-    colour_label.style.background = "#fc0";
-    function switch_colour(c){
-        if (colour === '#000'){
-            refill_background();
-        }
-        var new_colour = COLOUR_LUT[c];
-        if (new_colour !== undefined){
-            colour_label.style.background = "#fff";
-            colour_label = document.getElementById("colour-" + c);
-            colour_label.style.background = "#fc4";
-            colour = new_colour;
-        }
-    }
 
-    for (var c in COLOUR_LUT){
-        var label = document.getElementById("colour-" + c);
-        label.onclick = function(x){
-            return function(){switch_colour(x);};
-        }(c);
-    }
     function advance_playing_line(){
         context.putImageData(hidden_data, playing_column, playing_row * row_height);
         playing_column++;
-        if (playing_column >= canvas.width){
+        if (playing_column >= width){
             playing_column = 0;
             playing_row++;
         }
@@ -666,7 +683,7 @@ function fill_canvas(audio, native_audio){
         audio_source.buffer = native_audio;
         audio_source.connect(audio_context.destination);
         var row = parseInt(y / row_height);
-        audio_source.start(0, x * pixel2sec + row * 120);
+        audio_source.start(0, x * pixel2sec + row * width_in_seconds);
         if (hidden_data !== undefined && playing_column !== undefined){
             context.putImageData(hidden_data, playing_column, playing_row * row_height);
         }
@@ -684,7 +701,7 @@ function fill_canvas(audio, native_audio){
         }(playing_column_interval);
     }
 
-    canvas.onclick = function(e){
+    topcanvas.onclick = function(e){
         if (e.shiftKey){
             var x = e.pageX - this.offsetLeft;
             var y = e.pageY - this.offsetTop;
@@ -696,7 +713,7 @@ function fill_canvas(audio, native_audio){
         context.lineTo(x, y);
         context.stroke();
     }
-    canvas.onmousedown = function(e){
+    topcanvas.onmousedown = function(e){
         if (! e.shiftKey){
             drawing = 1;
             var x = e.pageX - this.offsetLeft;
@@ -704,7 +721,6 @@ function fill_canvas(audio, native_audio){
             context.beginPath();
             context.lineWidth = 5;
 	    context.lineJoin = 'round';
-            context.strokeStyle = colour;
             context.moveTo(x, y);
             draw_to(x, y);
         }
@@ -712,7 +728,7 @@ function fill_canvas(audio, native_audio){
     document.onmouseup = function(e){
         drawing = 0;
     };
-    canvas.onmousemove = function(e){
+    topcanvas.onmousemove = function(e){
         if (drawing){
             draw_to(e.pageX - this.offsetLeft,
                     e.pageY - this.offsetTop);
@@ -720,10 +736,7 @@ function fill_canvas(audio, native_audio){
     };
     document.onkeypress = function(e){
         var c = String.fromCharCode(e.charCode);
-        if (COLOUR_LUT[c] !== undefined){
-            switch_colour(c);
-        }
-        else if (c == ' ' || c == 'p'){
+        if (c == ' ' || c == 'p'){
             if (audio_source === undefined){
                 start_playing_at_point(playing_column, playing_row * row_height);
             }

@@ -1,8 +1,26 @@
+#content {
+  position:relative;
+}
+
+#background {
+  position:absolute;
+  top: 0;
+  left:0;
+}
 
 #fft {
   border: 1px solid black;
   cursor: crosshair;
   background: #111;
+}
+
+#drawing {
+  position:absolute;
+  top: 0;
+  left:0;
+  z-index: 11;
+
+  cursor: crosshair;
 }
 
 #debug {
