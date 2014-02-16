@@ -180,9 +180,10 @@ function get_morepork_intensity(spectrogram, lf, hf){
     var series = {
         peak_minus_med: new Float32Array(spectrogram.width),
         peak_over_med: new Float32Array(spectrogram.width),
-        medians: new Float32Array(spectrogram.width),
         peaks: new Float32Array(spectrogram.width)
     };
+
+    var medians = new Float32Array(spectrogram.width);
     var peak_index = new Float32Array(spectrogram.width);
     for (i = 0; i < spectrogram.width; i++){
         var peak = 0;
@@ -203,57 +204,241 @@ function get_morepork_intensity(spectrogram, lf, hf){
         series.peak_over_med[i] = peak / med;
         series.peaks[i] = peak;
         peak_index[i] = peak_i - low_band;
-        series.medians[i] = med;
-        //series.stddevs[i] = stddev;
+        medians[i] = med;
     }
-    var smooth_window = hann_window(7);
-    var smooth_window11 = hann_window(11);
-    series.smoothed_medians = convolve(series.medians, smooth_window11);
-    series.median_of_smoothed_medians = running_median(series.smoothed_medians, 50);
-    series.median_of_medians = running_median(series.medians, 50);
-    //series.smoothed_mom = convolve(series.median_of_medians, smooth_window11);
-    series.smoothed_peaks_over_medians = convolve(series.peak_over_med, smooth_window);
+    var hann3 = hann_window(3);
+    var hann5 = hann_window(5);
+    var hann7 = hann_window(7);
+    var vorbis71 = vorbis_window(71);
+    var vorbis11 = vorbis_window(11);
+    var hann11 = hann_window(11);
+    var hann19 = hann_window(19);
+    series.smoothed_medians = convolve(medians, hann11);
+    series.median_of_medians = running_median(medians, 50);
+    series.smoothed_peaks_over_medians = convolve(series.peak_over_med, hann5);
     series.peak_index_delta = new Float32Array(spectrogram.width);
-    series.peak_index_d2 = new Float32Array(spectrogram.width);
+    var peak_index_d2 = new Float32Array(spectrogram.width);
     series.peak_index_d3 = new Float32Array(spectrogram.width);
     series.peak_index_delta[0] = 0;
-    series.peak_index_d2[0] = series.peak_index_d2[1] = 0;
+    peak_index_d2[0] = peak_index_d2[1] = 0;
     series.peak_index_delta[0] = peak_index[1] - peak_index[0];
     var d2 = 0;
-
     for (i = 2; i < spectrogram.width; i++){
         var d = peak_index[i] - peak_index[i - 1];
         series.peak_index_delta[i] = Math.abs(d);
-        series.peak_index_d2[i] = Math.abs(d - d2);
+        peak_index_d2[i] = Math.abs(d - d2);
         series.peak_index_d3[i] = Math.abs(d2 * d);
         d2 = d;
     }
-    series.smoothed_d3 = convolve(series.peak_index_d3, smooth_window11);
-    series.median_d3 = running_median(series.peak_index_d3, 7);
+    series.peak_index = peak_index;
+    series.peak_index_variance = peak_index;
+    series.peak_ismoothed_d3 = convolve(series.peak_index_d3, hann19);
+    series.median_d3 = running_median(series.peak_index_d3, 10);
+    series.background = convolve(series.smoothed_peaks_over_medians, vorbis71);
+    series.signal_over_background = new Float32Array(spectrogram.width);
+    series.signal_minus_background = new Float32Array(spectrogram.width);
+    var peak_index_variance = new Float32Array(spectrogram.width);
+    var peak_index_smoothed = convolve(peak_index, hann7);
+    var peak_index_smoothed2 = convolve(peak_index, hann5);
 
-    series.spom_over_smom = new Float32Array(spectrogram.width);
     for (i = 0; i < spectrogram.width; i++){
-        series.spom_over_smom[i] = (series.smoothed_peaks_over_medians[i] /
-                series.median_of_medians[i]);
+        series.signal_over_background[i] = (series.smoothed_peaks_over_medians[i] /
+                series.background[i]);
+        series.signal_minus_background[i] = (series.smoothed_peaks_over_medians[i] -
+                series.background[i]);
     }
     series.bin_sos = new Float32Array(spectrogram.width);
     series.bin_d3 = new Float32Array(spectrogram.width);
     for (i = 0; i < spectrogram.width; i++){
-        series.bin_sos[i] = (series.spom_over_smom[i] > 1800);
-        series.bin_d3[i] = (series.smoothed_d3[i]  < 50);
+        peak_index_variance[i] = Math.abs(peak_index_smoothed[i] - peak_index_smoothed2[i]);
+        series.bin_sos[i] = (series.signal_over_background[i] > 1.2);
+        series.bin_d3[i] = (series.peak_ismoothed_d3[i] < 80);
     }
-
-
-
+    //series.hann11 = hann11;
+    //series.vorbis71 = vorbis71;
+    series.peak_index_variance = peak_index_variance;
+    series.peak_index_smoothed = peak_index_smoothed;
     return series;
 }
 
+var USE_CALL_RATIO = true;
+var CALL_RATIO_THRESHOLD_LEFT = 1.3;
+var CALL_RATIO_THRESHOLD_RIGHT = 1.1;
+var CALL_DIFF_THRESHOLD_LEFT = 1.4;
+var CALL_DIFF_THRESHOLD_RIGHT = 1.0;
+var TARGET_LENGTH = 0.72;
+var TARGET_GAP = 0.24;
+var TARGET_LEFT = 0.28;
+var TARGET_RIGHT = 0.20;
+var THRESHOLD = 2;
+var STOP_TRYING_THRESHOLD = 50;
+var MAX_RIGHT_SEARCH = 0.6; /*biggest syllable gap in seconds*/
+
+
+function analyse_call(series, l_start, l_stop, r_start, r_stop){
+    var jumpiness = 0;
+    var i;
+    var l_len = l_stop - l_start;
+    var r_len = r_stop - r_start;
+    for (i = l_start; i < l_stop; i++){
+        jumpiness += series.peak_index_d3[i];
+    }
+    for (i = r_start; i < r_stop; i++){
+        jumpiness += series.peak_index_d3[i];
+    }
+    jumpiness /= (l_len + r_len);
+    var intensity_left = 0;
+    for (i = l_start; i < l_stop; i++){
+        intensity_left += series.signal_over_background[i];
+    }
+    intensity_left /= l_len;
+    var intensity_right = 0;
+    for (i = r_start; i < r_stop; i++){
+        intensity_right += series.signal_over_background[i];
+    }
+    intensity_right /= r_len;
+    console.log('jumpiness', jumpiness);
+    console.log('intensity_left', intensity_left);
+    console.log('intensity_right', intensity_right);
+
+    var score = jumpiness * 2e-4;
+    score += 1 / intensity_left;
+    score += 0.7 / intensity_right;
+    return score;
+}
+
+
+function find_calls_in_call_diff(series, threshold_left, threshold_right,
+    windows_per_second){
+    var i, j;
+    var samples = series.signal_over_background;
+    var samples2secs = 1 / windows_per_second;
+    var left_calls = [];
+    var prev = -1, start = -1;
+    if (samples[0] > threshold_left){
+        start = 0;
+        prev = 0;
+    }
+    for (i = 1; i < samples.length; i++){
+        if (samples[i] > threshold_left){
+            if (i - 1 != prev){
+                /* a discontinuity */
+                if (start >= 0){
+                    left_calls.push([start, prev + 1]);
+                }
+                start = i;
+            }
+            prev = i;
+        }
+    }
+    if (prev  == i - 1){
+        left_calls.push([start, i]);
+    }
+    console.log('left calls', left_calls);
+
+    var candidates = [];
+    var max_right_search = parseInt(MAX_RIGHT_SEARCH * windows_per_second);
+
+    for (i = 0; i <  left_calls.length; i++){
+        var l_start = left_calls[i][0];
+        var l_stop = left_calls[i][1];
+        var in_call = false;
+        var r_start, r_stop;
+        //console.log('looking from ' + l_stop);
+        var max_i = l_stop + 1;
+        var max = samples[max_i];
+        for (j = l_stop + 2;
+             j < samples.length && j < l_stop + max_right_search;
+             j++){
+            if (samples[j] > max){
+                max = samples[j];
+                max_i = j;
+            }
+        }
+        /*search out from max to find drop below threshold */
+        for (r_start = max_i;
+             r_start > l_stop + 2;
+             r_start--){
+            if (samples[r_start] < threshold_right){
+                break;
+            }
+        }
+        for (r_stop = max_i;
+             r_stop < max_i + max_right_search;
+             r_stop++){
+            if (samples[r_stop] < threshold_right){
+                r_stop++;
+                break;
+            }
+        }
+        var left_start = l_start * samples2secs;
+        var left_stop = l_stop * samples2secs;
+        var right_start = r_start * samples2secs;
+        var right_stop = r_stop * samples2secs;
+        var overall_err = Math.pow(right_stop - left_start - TARGET_LENGTH, 2);
+        var left_err = Math.pow(left_stop - left_start - TARGET_LEFT, 2);
+        var gap_err = Math.pow(right_start - left_stop - TARGET_GAP, 2);
+        var right_err = Math.pow(right_stop - right_start - TARGET_RIGHT, 2);
+        var magic_err = analyse_call(series, l_start, l_stop, r_start, r_stop);
+        var err = overall_err * 4 + left_err * 2 + gap_err * 2 + right_err + magic_err;
+        console.log(left_start, right_stop, err, overall_err, left_err,
+                    gap_err, right_err, magic_err);
+        candidates.push([err, left_start, right_stop, l_start, r_stop]);
+    }
+    candidates.sort(function(a, b){return a[0] - b[0]});
+    console.log('candidates', candidates);
+    var winners = [];
+    for (i = 0; i < candidates.length; i++){
+        var c = candidates[i];
+        var score = c[0];
+        if (score > THRESHOLD){
+            break;
+        }
+        var s = c[1];
+        var e = c[2];
+        var fail = false;
+        for (j = 0; j < winners.length; j++){
+            var w = winners[j];
+            if (s < w[2] && e > w[1]){
+                console.debug(c, ' overlaps with ', w);
+                fail = true;
+                break;
+            }
+        }
+        if (! fail){
+            winners.push(c);
+        }
+    }
+    winners.sort(function(a, b){return a[1] - b[1]});
+    return winners;
+}
 
 function morepork_detector(spectrogram, lower_freq, upper_freq){
     var i, j;
     console.time('morepork intensity');
     var mdata = get_morepork_intensity(spectrogram, lower_freq, upper_freq);
     console.timeEnd('morepork intensity');
+
+    var winners;
+    if (USE_CALL_RATIO){
+        winners = find_calls_in_call_diff(mdata,
+        CALL_RATIO_THRESHOLD_LEFT,
+        CALL_RATIO_THRESHOLD_RIGHT, spectrogram.windows_per_second);
+    }
+    else {
+        winners = find_calls_in_call_diff(mdata.signal_minus_background,
+        CALL_DIFF_THRESHOLD_LEFT,
+        CALL_DIFF_THRESHOLD_RIGHT, spectrogram.windows_per_second);
+    };
+    console.log('winners', winners);
+    mdata.all_winners = new Float32Array(spectrogram.width);
+    for (i = 0; i < winners.length; i++){
+        var w = winners[i];
+        for (j = w[3] ; j < w[4]; j++){
+            mdata.all_winners[j] = THRESHOLD - w[0];
+        }
+    }
+
     console.time('morepork paint');
 
     var canvas = document.getElementById("debug");
@@ -365,11 +550,13 @@ function paint_spectrogram(spectrogram, canvas,
                            low_band * pixwidth + (high_band - low_band) * pixwidth);
         for (i = low_band; i < high_band; i++){
             var o = base_offset - i * pixwidth;
-            var v2 = s[i * squash];
-            var v = Math.sqrt(v2 + 1e-7);
-            pixels[o] = v2 * 1e6 + v2 * v2 * 2e6;
-            pixels[o + 1] = v2 / (v + 0.03) * 6e4 - v * 1e4;
-            pixels[o + 2] = v * 1e4 - v2 * v * 3e7;
+            var v2 = s[i * squash] * 1;
+            var v = Math.sqrt(v2 + 1e-5);
+            var v3 = v2 * v;
+            var v4 = v2 * v2;
+            pixels[o] = (v2 + v4 * 2e5) * 7e4;
+            pixels[o + 1] = (0.2 * v + 70 * v2 + 5e3 * v3) * 7e3;
+            pixels[o + 2] = (v - v3 * 1e4 + v4 * 5e6 - v * v4 * 3e8) * 3e3;
             pixels[o + 3] = 255;
         }
         if (col >= width){
@@ -392,7 +579,7 @@ function fill_canvas(audio, native_audio){
     var width_in_seconds = 60;
 
     var pixel2sec = width_in_seconds / width;
-    var row_height = 220;
+    var row_height = 160;
     var height = Math.ceil(audio.samples.length / audio.samplerate /
                            width_in_seconds) * row_height;
     canvas.height = height;
