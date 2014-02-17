@@ -534,6 +534,15 @@ function paint_spectrogram(spectrogram, canvas,
     var height = Math.ceil(s_width / width_in_seconds /
                            spectrogram.windows_per_second) * row_height;
     canvas.height = height;
+    var intensity = 0;
+    for (j = 0; j < 1000; j++){
+        var x = Math.floor(Math.random() * spectrogram.width);
+        var y = low_band + Math.floor(Math.random() * (high_band - low_band));
+        intensity += s_data[x * spectrogram.height + y];
+    }
+    var scale = 0.01 / intensity;
+    console.log('spectrogram scale, intensity', scale, intensity);
+
     console.time('paint_spectrogram');
     var pixwidth = width * 4;
     for (j = 0, col = 0, row = 0;
@@ -545,7 +554,7 @@ function paint_spectrogram(spectrogram, canvas,
                            low_band * pixwidth + (high_band - low_band) * pixwidth);
         for (i = low_band; i < high_band; i++){
             var o = base_offset - i * pixwidth;
-            var v2 = s[i * squash] * 1;
+            var v2 = s[i * squash] * scale;
             var v = Math.sqrt(v2 + 1e-5);
             var v3 = v2 * v;
             var v4 = v2 * v2;
