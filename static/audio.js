@@ -820,6 +820,21 @@ function fill_canvas(audio, native_audio){
             e.preventDefault();
         }
     };
+    var save_button = document.getElementById('save-button');
+    save_button.onclick = function(e){
+        var i;
+        var msg = '';
+        moreporks.sort(function(a, b){return a.left_pix - b.left_pix});
+        for (i = 0; i < moreporks.length; i++){
+            var m = moreporks[i];
+            if (m.selected){
+                msg += m.left_sec.toFixed(2) + ',' + m.right_sec.toFixed(2) + ',';
+            }
+        }
+        document.getElementById('moreporks').value=msg;
+        console.log(msg);
+        document.getElementById('form').submit();
+    };
 }
 
 

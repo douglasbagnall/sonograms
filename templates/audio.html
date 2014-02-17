@@ -4,20 +4,29 @@
 
   <title>Morepork detector</title>
   <script>
-    var URL = 'static/wav/{{ wav }}'
+    var URL = '{{wavdir}}/{{ wav }}'
   </script>
   <script type="text/javascript" src="static/dsp.js"></script>
   <script type="text/javascript" src="static/audio.js"></script>
   <link rel="stylesheet" href="static/sonogram.css" />
 </head>
 <body>
-
+<form id=form method=post>
   <div id=message></div>
-  <p>Click to toggle activity. Shift-click to move. Ctrl-click to grow or create. Alt-click to shrink</p>
-  <div id=instructions>
-</div>
+  <p><span class=message>{{ msg }}</span> There are {{ files_remaining }} files to go.
+<br>
+Click to toggle activity. Shift-click to move. Ctrl-click to grow or
+create. Alt-click to shrink.
 
-  <!--<canvas id="key" width="1100" height="100"></canvas>-->
+<button id=save-button>save</button>
+<input type=submit id=ignore name=ignore title="use to permanently ignore bad or tricky examples" value=ignore>
+<input type=submit id=skip name=skip title="skip this one for now" value=skip>
+
+<input type=hidden name=wav value="{{ wav }}">
+<input type=hidden id=moreporks name=moreporks>
+
+</p>
+</form>
 
 <div id=content>
   <div id=background>

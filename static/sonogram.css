@@ -4,10 +4,17 @@ body {
   font-family: sans-serif;
 }
 
+#form{
+  display: inline;
+}
+
+span.message {
+  color: #ffa;
+  margin-right: 10px;
+}
+
 #content {
-  position:absolute;
-  left:40px;
-  top: 40px;
+  position:relative;
 }
 
 #background {
