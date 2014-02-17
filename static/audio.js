@@ -126,7 +126,7 @@ function median(original, low, high){
     while (1){
         var pivot = array[right - 1];
         var j = left;
-        for (i = left; i < right; i++){
+        for (var i = left; i < right; i++){
             var v = array[i];
             if (v < pivot){
                 array[i] = array[j];
@@ -293,6 +293,9 @@ function analyse_call(series, l_start, l_stop, r_start, r_stop){
     var score = jumpiness * 2e-4;
     score += 0.9 / intensity_left;
     score += 0.5 / intensity_right;
+    if (isNaN(score)){
+        score = THRESHOLD;
+    }
     return score;
 }
 
@@ -601,6 +604,7 @@ function draw_one_morepork(m, row_height, erase){
         context.moveTo(l_col, y - 50);
         context.lineTo(l_col, y - 10);
         context.lineTo(width, y - 10);
+        y = (r_row + 1) * row_height;
         context.moveTo(0, y - 10);
         context.lineTo(r_col, y - 10);
         context.lineTo(r_col, y - 50);
