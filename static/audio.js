@@ -651,11 +651,11 @@ function fill_canvas(audio, native_audio){
     var spectrogram = calculate_spectrogram(audio, window_size, spacing);
     console.timeEnd('calculate_spectrogram');
     var pixels = paint_spectrogram(spectrogram, fftcanvas, row_height,
-                                   width_in_seconds, 600, 1500, 1);
+                                   width_in_seconds, 550, 1500, 1);
 
     console.log(spectrogram);
 
-    var LOWER_FREQ = 700;
+    var LOWER_FREQ = 650;
     var UPPER_FREQ = 1100;
 
     console.time('morepork_detector');
