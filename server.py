@@ -14,8 +14,12 @@ PENDING_FILES = set()
 WAV_DIR = 'static/wav'
 #WAV_DIR = 'static/wav-test'
 
+MOREPORKS_FOUND = 0
+FILES_PROCESSED = 0
+FILES_IGNORED = 0
+
 def set_up_dbm_and_file_list():
-    global DB, FILES
+    global DB, FILES, MOREPORKS_FOUND, FILES_PROCESSED, FILES_IGNORED
     DB = anydbm.open('moreporks.dbm', 'c')
     # sync with filesystem on start up
     for dirpath, dirnames, filenames in os.walk(WAV_DIR, followlinks=True):
@@ -27,15 +31,21 @@ def set_up_dbm_and_file_list():
                 if fn not in DB:
                     PENDING_FILES.add(fn)
 
-    for fn in DB:
-        ffn = os.path.join(WAV_DIR, fn)
-        if not os.path.exists(ffn):
-            print >> sys.stderr, "%s is missing" % ffn
+    for fn, moreporks in DB.iteritems():
+        if moreporks == IGNORED:
+            FILES_IGNORED += 1
+        else:
+            FILES_PROCESSED += 1
+            MOREPORKS_FOUND += moreporks.count(' ') // 2
+            ffn = os.path.join(WAV_DIR, fn)
+            if not os.path.exists(ffn):
+                print >> sys.stderr, "%s is missing" % ffn
 
 set_up_dbm_and_file_list()
 
 
 def save_results():
+    global FILES_PROCESSED, FILES_IGNORED, MOREPORKS_FOUND
     if request.method == 'POST':
         get = request.form.get
     else:
@@ -51,6 +61,7 @@ def save_results():
     PENDING_FILES.discard(wav)
     if get('ignore'):
         DB[wav] = IGNORED
+        FILES_IGNORED += 1
         return "added '%s' to ignored list" % wav
     morepork_string = get('moreporks')
     if morepork_string is None:
@@ -58,6 +69,8 @@ def save_results():
     else:
         morepork_times = [x for x in morepork_string.encode('utf-8').split(',')
                           if re.match('\d+(\.\d+)?', x)]
+    FILES_PROCESSED += 1
+    MOREPORKS_FOUND += len(morepork_times) // 2
     DB[wav] = ' '.join(morepork_times)
     return "saved %d moreporks in %s" % (len(morepork_times) / 2, wav)
 
@@ -70,7 +83,9 @@ def main_page():
     else:
         wav = None
     return render_template('audio.html', wav=wav, wavdir=WAV_DIR, msg=msg,
-                           files_remaining=len(PENDING_FILES))
+                           files_remaining=len(PENDING_FILES),
+                           files_processed=FILES_PROCESSED, files_ignored=FILES_IGNORED,
+                           moreporks_found=MOREPORKS_FOUND)
 
 @app.route('/results.txt')
 def results():
