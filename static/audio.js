@@ -392,16 +392,14 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
         if (c.score > THRESHOLD){
             break;
         }
-        var fail = false;
         for (j = 0; j < winners.length; j++){
             var w = winners[j];
             if (c.left_pix < w.right_pix && c.right_pix > w.left_pix){
                 console.debug(c, ' overlaps with ', w);
-                fail = true;
                 break;
             }
         }
-        if (! fail){
+        if (j == winners.length){
             winners.push(c);
         }
     }
