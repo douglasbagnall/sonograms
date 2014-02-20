@@ -104,13 +104,16 @@ def results():
         s = ' '.join('%s %s' % tuple(x) for x in pairs)
         lines.append(k + ' ' + s)
 
-    response = make_response('\n'.join(lines))
+    text = '\n'.join(lines)
+    f = open('results-%d.txt' % len(lines), 'w')
+    f.write(text)
+    f.close()
+    response = make_response(text)
     response.headers["content-type"] = "text/plain"
     return response
 
-
-
-if True:
-    app.run(debug=True)
-else:
-    app.run(host='0.0.0.0')
+if __name__ == '__main__':
+    if True:
+        app.run(debug=True)
+    else:
+        app.run(host='0.0.0.0')
