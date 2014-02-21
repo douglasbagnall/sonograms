@@ -6,3 +6,6 @@
 .emacs*
 /junk/
 *.wav
+results*.txt
+static/wav/*
+moreporks.dbm
