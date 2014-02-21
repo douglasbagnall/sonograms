@@ -783,6 +783,7 @@ function fill_canvas(audio, native_audio){
             }
         }
         e.preventDefault();
+        e.stopPropagation();
     };
 
     // ondblclick fires after two onclicks. Here it accelerates growing and shrinking, and
@@ -838,9 +839,11 @@ function fill_canvas(audio, native_audio){
                 }
             }
         }
+        e.preventDefault();
+        e.stopPropagation();
     };
 
-    document.onmouseup = function(e){
+    topcanvas.onmouseup = function(e){
         var p = get_pos(e);
         if(drag_start_pos !== undefined){
             console.log("ending shift");
@@ -853,6 +856,8 @@ function fill_canvas(audio, native_audio){
             draggee = undefined;
             drag_start_pos = undefined;
         }
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     document.onkeypress = function(e){
