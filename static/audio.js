@@ -785,6 +785,42 @@ function fill_canvas(audio, native_audio){
         e.preventDefault();
     };
 
+    // ondblclick fires after two onclicks. Here it accelerates growing and shrinking, and
+    // tries to cancel the default action (selection of the canvas for cut and paste).
+    topcanvas.ondblclick = function(e){
+        var p = get_pos(e);
+        if (p.ry >= row_height - 40){
+            var m = undefined;
+            for (var i = 0; i < moreporks.length; i++){
+                var mm = moreporks[i];
+                if (p.pos >= mm.left_pix && p.pos <= mm.right_pix){
+                    m = mm;
+                    break;
+                }
+            }
+            if (e.ctrlKey){
+                draw_one_morepork(m, row_height, 1);
+                m.right_pix++;
+                m.right_sec = m.right_pix * pixel2sec;
+                draw_one_morepork(m, row_height);
+            }
+            else if (e.altKey || e.metaKey){
+                draw_one_morepork(m, row_height, 1);
+                m.right_pix--;
+                m.right_sec = m.right_pix * pixel2sec;
+                if (m.right_pix - m.left_pix < 5){
+                    moreporks.splice(i, 1);
+                }
+                else{
+                    draw_one_morepork(m, row_height);
+                }
+            }
+        }
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+
     var drag_start_pos;
     var draggee;
     topcanvas.onmousedown = function(e){
