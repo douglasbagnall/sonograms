@@ -586,7 +586,7 @@ function draw_one_morepork(m, row_height, erase){
     var y;
     var cross_bar = 40 - 30 * m.score / THRESHOLD;
     var comp_op = context.globalCompositeOperation;
-    var colour = m.selected ? "#33ff00" : "#ff0000";
+    var colour = m.selected ? "#33ff00" : "#cc0000";
     if (erase){
         //colour = "rgba(255,255,255,255)";
         colour = "#ffffff";
