@@ -2,7 +2,7 @@
 <html>
 <head>  <meta charset="utf-8">
 
-  <title>Morepork detector</title>
+  <title>Morepork detector: {{ wav }}</title>
   <script>
     var URL = '{{wavdir}}/{{ wav }}'
   </script>
@@ -16,7 +16,7 @@
   <p><span class=message>{{ msg }}</span> So far {{moreporks_found}} calls found in {{files_processed}} files. {{files_ignored}} files have been ignored. There are {{ files_remaining }} to go.
 <br>
 Click to toggle activity. Shift-click to move. Ctrl-click to grow or
-create. Alt-click to shrink.
+create. Alt-click to shrink. <br>Looking at <b>{{wav}}</b>
 
 <button id=save-button>save</button>
 <input type=submit id=ignore name=ignore title="use to permanently ignore bad or tricky examples" value=ignore>
