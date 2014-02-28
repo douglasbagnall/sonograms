@@ -8,4 +8,6 @@
 *.wav
 results*.txt
 static/wav/*
+static/minutes/*
 moreporks.dbm
+/times/
