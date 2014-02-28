@@ -1,0 +1,42 @@
+#!/usr/bin/python
+
+import os, sys, subprocess
+import random, re
+
+
+def expand_timings_file(timings, output, directory, noise_ratio=0.33):
+    moreporks = []
+    noise = []
+    file_list = [os.path.basename(x) for x in os.listdir(directory)
+                 if x.endswith('.wav')]
+    files = set(file_list)
+
+    f = open(timings)
+    for line in f:
+        bits = line.strip().split(None, 1)
+        fn = os.path.basename(bits[0])
+        if fn not in files:
+            print "%s is missing !?" % fn
+        if len(bits) == 1:
+            noise.append(fn)
+        else:
+            times = bits[1]
+            moreporks.append((fn, times))
+            base = fn[:-4]
+            for fn2 in file_list:
+                if fn2.startswith(base):
+                    moreporks.append((fn2, times))
+                    print fn2, base
+    
+    f.close()
+
+    f = open(output, 'w')
+    for fn, times in moreporks:
+        print >> f,  "%s %s" % (fn, times)
+
+    random.shuffle(noise)
+    for fn in noise[:int(len(moreporks) * noise_ratio)]:
+        print >> f, fn
+    f.close()
+
+expand_timings_file(*sys.argv[1:])
