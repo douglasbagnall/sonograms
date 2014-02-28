@@ -28,8 +28,11 @@ def set_up_dbm_and_file_list():
             if fn.endswith('.wav'):
                 if d:
                     fn = d + '/' + fn
-                if fn not in DB:
-                    PENDING_FILES.add(fn)
+                try:
+                    if fn not in DB:
+                        PENDING_FILES.add(fn)
+                except:
+                    print >>sys.stderr, "couldn't add %s, stupid dbm" % fn
 
     for fn, moreporks in DB.iteritems():
         if moreporks == IGNORED:
@@ -40,6 +43,8 @@ def set_up_dbm_and_file_list():
             ffn = os.path.join(WAV_DIR, fn)
             if not os.path.exists(ffn):
                 print >> sys.stderr, "%s is missing" % ffn
+
+    DB.sync()
 
 set_up_dbm_and_file_list()
 
@@ -72,6 +77,7 @@ def save_results():
     FILES_PROCESSED += 1
     MOREPORKS_FOUND += len(morepork_times) // 2
     DB[wav] = ' '.join(morepork_times)
+    DB.sync()
     return "saved %d moreporks in %s" % (len(morepork_times) / 2, wav)
 
 
@@ -110,6 +116,8 @@ def results():
     f.close()
     response = make_response(text)
     response.headers["content-type"] = "text/plain"
+    DB.sync()
+
     return response
 
 if __name__ == '__main__':
