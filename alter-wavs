@@ -1,0 +1,71 @@
+#!/usr/bin/python
+
+import os, sys, subprocess
+import re
+import random
+
+def adjust_gain(wav, gain):
+    if not os.path.exists(wav):
+        print "'%s' does not exist" % wav
+        return
+    outwav = wav.replace(".wav", "-gain_%.1f.wav" % gain)
+    cmd = [
+        "sox", wav, outwav,
+        "gain", "-l", str(gain),
+    ]
+    subprocess.check_call(cmd)
+    return outwav
+
+
+def get_rms_power(wav):
+    cmd = [
+        "sox", wav, "-n", "stats"
+    ]
+    s = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    m = re.search(r'RMS lev dB\s+(\S+)', s)
+    return float(m.group(1))
+
+
+def add_noise(morepork, noises):
+    morepork_volume = get_rms_power(morepork)
+    for i in range(15):
+        noise = random.choice(noises)
+        if get_rms_power(noise) < morepork_volume - 3:
+            break
+    else:
+        return
+    noisebase = os.path.basename(noise).replace('.wav', '')
+    newfilename = morepork.replace('.wav', '-with-noise-%s.wav' % noisebase)
+    cmd = [
+        "sox", "--combine", "mix-power",
+        morepork, noise,
+        newfilename
+    ]
+    subprocess.check_call(cmd)
+    return newfilename
+
+def adjust_from_timings_file(timings_file, directory, gain):
+    f = open(timings_file)
+    for line in f:
+        bits = line.split()
+        fn = bits.pop(0)
+        adjust_gain(os.path.join(directory, fn), gain)
+
+
+def add_noise_from_timings_files(morepork_file, noise_file, directory):
+    f = open(morepork_file)
+    moreporks = [os.path.join(directory, line.split(None, 1)[0]) for line in f]
+    f.close()
+    f = open(noise_file)
+    noises = [os.path.join(directory, line.strip()) for line in f]
+    f.close()
+    noises5 = [adjust_gain(n, -5) for n in noises]
+    noises += noises5
+
+    for morepork in moreporks:
+        fn = add_noise(morepork, noises)
+        print fn
+
+
+add_noise_from_timings_files(sys.argv[1], sys.argv[2], sys.argv[3])
+#adjust_from_timings_file(sys.argv[1], sys.argv[2], float(sys.argv[3]))
