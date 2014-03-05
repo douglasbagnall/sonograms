@@ -33,13 +33,14 @@ def split_timings(wav, times, destpattern, size):
             s_split += 1
             split_times[s_split].append(0)
         split_times[e_split].append(e - e_split * size)
-    return [(destpattern %i, times) for i, times in enumerate(split_times)]
+    return [(destpattern % (i + 1), times)
+            for i, times in enumerate(split_times[:-1])]
 
 
 def split_wav_and_timings(wav, times, destdir, size):
     b = os.path.basename(wav).replace('.wav', '')
     wavpattern = os.path.join(destdir, b + '-%%n+%s.wav' % size)
-    timepattern = wavpattern.replace('%n+', '%d+')
+    timepattern = wavpattern.replace('%n+', '%02d+')
     split_wav(os.path.join(SRC_PREFIX, wav),
               os.path.join(DEST_PREFIX, wavpattern), size)
     for fn, times in split_timings(wav, times, timepattern, size):
