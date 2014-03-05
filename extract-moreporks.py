@@ -2,6 +2,7 @@
 
 import wave
 import os, sys
+from collections import Counter
 
 BPS = 2 * 8000
 
@@ -30,7 +31,7 @@ def concat_snippets(src, dest, times):
             audio = audio[:-1]
         dest.writeframes(audio)
 
-def process_line(line, dest=None):
+def process_line(line, dest=None, durations=None):
     tokens = line.split()
     fn = tokens.pop(0)
     times = []
@@ -46,6 +47,9 @@ def process_line(line, dest=None):
 
     if dest is None:
         dest = open_wav(os.path.basename(fn + '-moreporks-only.wav'))
+    if durations is not None:
+        durations.update('%0.2f' % (e - s) for s, e in times)
+
     #print fn, dest
     f = open(WAV_DIR + fn)
     concat_snippets(f, dest, times)
@@ -53,8 +57,12 @@ def process_line(line, dest=None):
 
 def main(fn):
     dest= open_wav('all-moreporks.wav')
+    durations = Counter()
     f = open(fn)
     for line in f:
-        process_line(line, dest)
+        process_line(line, dest, durations)
+    scale = 90.0 / durations.most_common(1)[0][1]
+    for k, v in sorted(durations.items()):
+        print "%s %5d %s" % (k, v, '*' * int(scale * v + 0.5))
 
 main(sys.argv[1])
