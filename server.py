@@ -18,6 +18,25 @@ MOREPORKS_FOUND = 0
 FILES_PROCESSED = 0
 FILES_IGNORED = 0
 
+def load_from_files(fn, ignored=None):
+    """This is for when the database crashes."""
+    if ignored:
+        f = open(ignored)
+        for line in f:
+            line = line.strip()
+            if line:
+                DB[line] = IGNORED
+        f.close()
+    f = open(fn)
+    for line in f:
+        line = line.strip()
+        if ' ' in line:
+            fn, times = line.split(None, 1)
+            DB[fn] = ' '.join('%.2f' % x for x in sanitise_times(times))
+        elif line:
+            DB[line] = ''
+    f.close()
+
 def set_up_dbm_and_file_list():
     global DB, FILES, MOREPORKS_FOUND, FILES_PROCESSED, FILES_IGNORED
     DB = anydbm.open('moreporks.dbm', 'c')
@@ -44,6 +63,7 @@ def set_up_dbm_and_file_list():
             if not os.path.exists(ffn):
                 print >> sys.stderr, "%s is missing" % ffn
 
+    #load_from_files('times/consolidated-271.txt', 'ignored-272.txt')
     DB.sync()
 
 
@@ -81,7 +101,6 @@ def sanitise_times(times):
     combined.append(ls)
     combined.append(le)
     return combined
-set_up_dbm_and_file_list()
 
 
 def save_results():
@@ -152,6 +171,8 @@ def results():
     DB.sync()
 
     return response
+
+set_up_dbm_and_file_list()
 
 if __name__ == '__main__':
     try:
