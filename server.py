@@ -76,9 +76,9 @@ def sanitise_times(times):
             times = times.split(',')
         else:
             times = times.split()
+    times = [float(x) for x in times if x]
     if len(times) & 1:
         raise ValueError("len(times) is odd: %d" % len(times))
-    times = [float(x) for x in times]
 
     #so, now times is a possibly empty list of floats
     #split it into pairs
