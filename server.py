@@ -46,6 +46,41 @@ def set_up_dbm_and_file_list():
 
     DB.sync()
 
+
+def sanitise_times(times):
+    if not times:
+        return []
+    if isinstance(times, (str, unicode)):
+        times = times.encode('utf-8').strip()
+        if ',' in times:
+            times = times.split(',')
+        else:
+            times = times.split()
+    if len(times) & 1:
+        raise ValueError("len(times) is odd: %d" % len(times))
+    times = [float(x) for x in times]
+
+    #so, now times is a possibly empty list of floats
+    #split it into pairs
+    pairs = [times[i : i + 2] for i in range(0, len(times), 2)]
+    for s, e in pairs:
+        if e < s:
+            raise ValueError("pair %s,%s has end before start" % (s, e))
+    pairs.sort()
+    ls, le = pairs[0]
+    combined = []
+    for i in range(1, len(pairs)):
+        rs, re = pairs[i]
+        if rs <= le: #overlap --> merge
+            le = re
+        else:
+            combined.append(ls)
+            combined.append(le)
+            ls = rs
+            le = re
+    combined.append(ls)
+    combined.append(le)
+    return combined
 set_up_dbm_and_file_list()
 
 
@@ -69,14 +104,11 @@ def save_results():
         FILES_IGNORED += 1
         return "added '%s' to ignored list" % wav
     morepork_string = get('moreporks')
-    if morepork_string is None:
-        morepork_times = []
-    else:
-        morepork_times = [x for x in morepork_string.encode('utf-8').split(',')
-                          if re.match('\d+(\.\d+)?', x)]
+    morepork_times = sanitise_times(morepork_string)
+
     FILES_PROCESSED += 1
     MOREPORKS_FOUND += len(morepork_times) // 2
-    DB[wav] = ' '.join(morepork_times)
+    DB[wav] = ' '.join("%.2f" % x for x in morepork_times)
     DB.sync()
     return "saved %d moreporks in %s" % (len(morepork_times) / 2, wav)
 
@@ -98,22 +130,23 @@ def results():
     #this bizarre sorting happens here because unsorted values have
     #already got into the database.
     lines = []
+    ignored = []
     for k, v in DB.iteritems():
         if v == IGNORED:
-            continue
-        floats = [float(x) for x in v.split()]
-        pairs = []
-        while floats:
-            pairs.append(floats[:2])
-            del floats[:2]
-        pairs.sort()
-        s = ' '.join('%s %s' % tuple(x) for x in pairs)
-        lines.append(k + ' ' + s)
+            ignored.append(k)
+        else:
+            s = ' '.join('%s' % x for x in sanitise_times(v))
+            lines.append("%s %s\n" % (k, s))
 
-    text = '\n'.join(lines)
+    lines.sort()
+    text = ''.join(lines)
     f = open('results-%d.txt' % len(lines), 'w')
     f.write(text)
     f.close()
+    f = open('ignored-%d.txt' % len(lines), 'w')
+    f.write('\n'.join(ignored) + '\n')
+    f.close()
+
     response = make_response(text)
     response.headers["content-type"] = "text/plain"
     DB.sync()
