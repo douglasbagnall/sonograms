@@ -121,7 +121,10 @@ def results():
     return response
 
 if __name__ == '__main__':
-    if True:
-        app.run(debug=True)
-    else:
-        app.run(host='0.0.0.0')
+    try:
+        if True:
+            app.run(debug=True)
+        else:
+            app.run(host='0.0.0.0')
+    finally:
+        DB.close()
