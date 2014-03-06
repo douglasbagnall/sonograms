@@ -19,6 +19,7 @@ IGNORED_WAV_DIRS = ('doc-kiwi', 'doc-morepork', 'rfpt-15m')
 MOREPORKS_FOUND = 0
 FILES_PROCESSED = 0
 FILES_IGNORED = 0
+FILES_INTERESTING = 0
 
 def load_from_files(fn, ignored=None):
     """This is for when the database crashes."""
@@ -40,7 +41,7 @@ def load_from_files(fn, ignored=None):
     f.close()
 
 def set_up_dbm_and_file_list():
-    global DB, FILES, MOREPORKS_FOUND, FILES_PROCESSED, FILES_IGNORED
+    global DB, FILES, MOREPORKS_FOUND, FILES_PROCESSED, FILES_IGNORED, FILES_INTERESTING
     DB = anydbm.open('moreporks.dbm', 'c')
     # sync with filesystem on start up
     for dirpath, dirnames, filenames in os.walk(WAV_DIR, followlinks=True):
@@ -62,13 +63,14 @@ def set_up_dbm_and_file_list():
         if moreporks == IGNORED:
             FILES_IGNORED += 1
         else:
+            FILES_INTERESTING += moreporks.startswith(INTERESTING)
             FILES_PROCESSED += 1
             MOREPORKS_FOUND += moreporks.count(' ') // 2
             ffn = os.path.join(WAV_DIR, fn)
             if not os.path.exists(ffn):
                 print >> sys.stderr, "%s is missing" % ffn
 
-    #load_from_files('times/consolidated-271.txt', 'ignored-272.txt')
+    #load_from_files('times/results-319.txt', 'times/ignored-319.txt')
     DB.sync()
 
 
@@ -113,7 +115,7 @@ def sanitise_times(times):
 
 
 def save_results():
-    global FILES_PROCESSED, FILES_IGNORED, MOREPORKS_FOUND
+    global FILES_PROCESSED, FILES_IGNORED, MOREPORKS_FOUND, FILES_INTERESTING
     if request.method == 'POST':
         get = request.form.get
     else:
@@ -134,7 +136,11 @@ def save_results():
     morepork_string = get('moreporks')
     morepork_times = sanitise_times(morepork_string)
     time_string = ' '.join("%.2f" % x for x in morepork_times)
-    interesting_string = INTERESTING + ' ' if get('interesting') else ''
+    if get('interesting'):
+        FILES_INTERESTING += 1
+        interesting_string = INTERESTING + ' '
+    else:
+        interesting_string = ''
     FILES_PROCESSED += 1
     MOREPORKS_FOUND += len(morepork_times) // 2
     DB[wav] = interesting_string + time_string
@@ -152,6 +158,7 @@ def main_page():
     return render_template('audio.html', wav=wav, wavdir=WAV_DIR, msg=msg,
                            files_remaining=len(PENDING_FILES),
                            files_processed=FILES_PROCESSED, files_ignored=FILES_IGNORED,
+                           files_interesting=FILES_INTERESTING,
                            moreporks_found=MOREPORKS_FOUND)
 
 @app.route('/results.txt')
