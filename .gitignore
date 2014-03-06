@@ -11,3 +11,6 @@ static/wav/*
 static/minutes/*
 moreporks.dbm
 /times/
+/results*.txt
+/interesting*.txt
+/ignored*.txt
