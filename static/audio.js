@@ -294,17 +294,20 @@ function fill_canvas(audio, native_audio){
     var playing_row = 0;
     var hidden_data;
     var playing_column_interval;
+    var zero_time;
 
     function advance_playing_line(){
-        context.putImageData(hidden_data, playing_column, playing_row * row_height);
-        playing_column++;
-        if (playing_column >= width){
-            playing_column = 0;
-            playing_row++;
+        var t = audio_context.currentTime - zero_time;
+        var p = t / pixel2sec;
+        var pc_candidate = parseInt(p % topcanvas.width);
+        if (playing_column != pc_candidate){
+            context.putImageData(hidden_data, playing_column, playing_row * row_height);
+            playing_column = pc_candidate;
+            playing_row = parseInt(p / topcanvas.width);
+            hidden_data = context.getImageData(playing_column, playing_row * row_height,
+                                               1, row_height);
+            context.fillRect(playing_column, playing_row * row_height, 1, row_height);
         }
-        hidden_data = context.getImageData(playing_column, playing_row * row_height,
-                                           1, row_height);
-        context.fillRect(playing_column, playing_row * row_height, 1, row_height);
     }
     function stop_playing(){
         if (audio_source !== undefined){
@@ -320,7 +323,9 @@ function fill_canvas(audio, native_audio){
         audio_source.connect(audio_context.destination);
         var row = parseInt(p / topcanvas.width);
         var col = parseInt(p % topcanvas.width);
-        audio_source.start(0, col * pixel2sec + row * width_in_seconds);
+        var t = col * pixel2sec + row * width_in_seconds;
+        audio_source.start(0, t);
+        zero_time = audio_context.currentTime - t;
         if (hidden_data !== undefined && playing_column !== undefined){
             context.putImageData(hidden_data, playing_column, playing_row * row_height);
         }
@@ -330,7 +335,7 @@ function fill_canvas(audio, native_audio){
         hidden_data = context.getImageData(col, row * row_height, 1, row_height);
         context.fillRect(col, row * row_height, 1, row_height);
         playing_column_interval = window.setInterval(advance_playing_line,
-                                                     pixel2sec * 1000);
+                                                     pixel2sec * 500);
         audio_source.onended = function(id){
             return function(){
                 window.clearInterval(id);
