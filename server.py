@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, make_response
 app = Flask(__name__)
 
 IGNORED = 'ignored'
+INTERESTING = 'interesting'
 
 PENDING_FILES = set()
 
@@ -76,6 +77,10 @@ def sanitise_times(times):
             times = times.split(',')
         else:
             times = times.split()
+    if times[0] == INTERESTING:
+        times = times[1:]
+    if not times:
+        return []
     times = [float(x) for x in times if x]
     if len(times) & 1:
         raise ValueError("len(times) is odd: %d" % len(times))
@@ -124,10 +129,11 @@ def save_results():
         return "added '%s' to ignored list" % wav
     morepork_string = get('moreporks')
     morepork_times = sanitise_times(morepork_string)
-
+    time_string = ' '.join("%.2f" % x for x in morepork_times)
+    interesting_string = INTERESTING + ' ' if get('interesting') else ''
     FILES_PROCESSED += 1
     MOREPORKS_FOUND += len(morepork_times) // 2
-    DB[wav] = ' '.join("%.2f" % x for x in morepork_times)
+    DB[wav] = interesting_string + time_string
     DB.sync()
     return "saved %d moreporks in %s" % (len(morepork_times) / 2, wav)
 
@@ -146,14 +152,15 @@ def main_page():
 
 @app.route('/results.txt')
 def results():
-    #this bizarre sorting happens here because unsorted values have
-    #already got into the database.
     lines = []
     ignored = []
+    interesting = []
     for k, v in DB.iteritems():
         if v == IGNORED:
             ignored.append(k)
         else:
+            if v.startswith(INTERESTING):
+                interesting.append(k)
             s = ' '.join('%s' % x for x in sanitise_times(v))
             lines.append("%s %s\n" % (k, s))
 
@@ -164,6 +171,9 @@ def results():
     f.close()
     f = open('ignored-%d.txt' % len(lines), 'w')
     f.write('\n'.join(ignored) + '\n')
+    f.close()
+    f = open('interesting-%d.txt' % len(lines), 'w')
+    f.write('\n'.join(interesting) + '\n')
     f.close()
 
     response = make_response(text)
