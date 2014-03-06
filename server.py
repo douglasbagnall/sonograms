@@ -13,6 +13,7 @@ INTERESTING = 'interesting'
 PENDING_FILES = set()
 
 WAV_DIR = 'static/wav'
+IGNORED_WAV_DIRS = ('doc-kiwi', 'doc-morepork', 'rfpt-15m')
 #WAV_DIR = 'static/wav-test'
 
 MOREPORKS_FOUND = 0
@@ -44,6 +45,9 @@ def set_up_dbm_and_file_list():
     # sync with filesystem on start up
     for dirpath, dirnames, filenames in os.walk(WAV_DIR, followlinks=True):
         d = re.sub(WAV_DIR + '/?', '', dirpath)
+        if d in IGNORED_WAV_DIRS:
+            print d
+            continue
         for fn in filenames:
             if fn.endswith('.wav'):
                 if d:
