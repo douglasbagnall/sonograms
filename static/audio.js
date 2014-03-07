@@ -195,7 +195,7 @@ function paint_spectrogram(spectrogram, canvas,
                            row_height,
                            width_in_seconds,
                            low_hz, high_hz, squash){
-    var i, j;
+    var i, j, x, y;
     var left, col, row;
     squash = squash || 1;
     var low_band = parseInt(spectrogram.hz2band(low_hz) / squash);
@@ -213,8 +213,8 @@ function paint_spectrogram(spectrogram, canvas,
     canvas.height = height;
     var intensity = 0;
     for (j = 0; j < 1000; j++){
-        var x = Math.floor(Math.random() * spectrogram.width);
-        var y = low_band + Math.floor(Math.random() * (high_band - low_band));
+        x = Math.floor(Math.random() * spectrogram.width);
+        y = low_band + Math.floor(Math.random() * (high_band - low_band));
         intensity += s_data[x * spectrogram.height + y];
     }
     var scale = 0.001 / intensity;
@@ -225,7 +225,7 @@ function paint_spectrogram(spectrogram, canvas,
     for (j = 0, col = 0, row = 0;
          j < s_width;
          j++, col++){
-        var x  = j * s_height;
+        x  = j * s_height;
         var s = s_data.subarray(x, x + s_height);
         var base_offset = ((row * row_height * width + col) * 4  +
                            low_band * pixwidth + (high_band - low_band) * pixwidth);
@@ -274,7 +274,7 @@ function merge_calls(calls){
     var left, right;
     left = calls[0];
     for (var i = 1; i < calls.length; i++){
-        var right = calls[i];
+        right = calls[i];
         if (left.selected != right.selected || left.right_pix < right.left_pix){
             filtered.push(left);
             left = right;
@@ -396,6 +396,7 @@ function fill_canvas(audio, native_audio){
     var drag_start_pos;
     var draggee;
     var drag_start_edge;
+    var modify_call_shape;
     function set_selected_call(m, pos){
         draw_one_call(m, row_height, 1);
         drag_start_pos = pos;
@@ -431,11 +432,11 @@ function fill_canvas(audio, native_audio){
                     drag_start_edge = m.left_pix;
                     modify_call_shape = function(mm, pos){
                         var md = pos - drag_start_pos;
-                        var x = drag_start_edge + parseInt(md / 2)
+                        var x = drag_start_edge + parseInt(md / 2);
                         if (x < m.right_pix){
                             mm.left_pix = x;
                         }
-                    }
+                    };
                     set_selected_call(m, p.pos);
                 }
                 else if (e.ctrlKey){
@@ -447,7 +448,7 @@ function fill_canvas(audio, native_audio){
                         if (x > m.left_pix){
                             mm.right_pix = x;
                         }
-                    }
+                    };
                     set_selected_call(m, p.pos);
                 }
                 else if (e.shiftKey){
@@ -459,7 +460,7 @@ function fill_canvas(audio, native_audio){
                         var md = pos - drag_start_pos;
                         mm.left_pix = drag_start_edge + md;
                         mm.right_pix = m.left_pix + width;
-                    }
+                    };
                 }
             }
         }
@@ -509,7 +510,7 @@ function fill_canvas(audio, native_audio){
             draw_calls(calls, row_height, width_in_seconds);
         }
         else if (c == 'o'){
-            for (i = 0; i < calls.length; i++){
+            for (var i = 0; i < calls.length; i++){
                 calls[i].selected = 0;
             }
             draw_calls(calls, row_height, width_in_seconds);

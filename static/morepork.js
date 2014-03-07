@@ -234,7 +234,7 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
         for (j = 0; j < winners.length; j++){
             var w = winners[j];
             if (c.left_pix < w.right_pix && c.right_pix > w.left_pix){
-                console.debug(c, ' overlaps with ', w);
+                //console.debug(c, ' overlaps with ', w);
                 break;
             }
         }
