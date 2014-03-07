@@ -514,6 +514,13 @@ function fill_canvas(audio, native_audio){
             }
             draw_moreporks(moreporks, row_height, width_in_seconds);
         }
+        else if (c == 'i'){
+            var el = document.getElementById('interesting');
+            el.checked = ! el.checked;
+        }
+        else if (c == 's'){
+            save_button.click();
+        }
     };
     var save_button = document.getElementById('save-button');
     save_button.onclick = function(e){
