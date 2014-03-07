@@ -316,10 +316,10 @@ function fill_canvas(audio, native_audio){
     var UPPER_FREQ = 1100;
 
     console.time('detector');
-    var moreporks = morepork_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
+    var calls = call_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
     console.timeEnd('detector');
 
-    draw_moreporks(moreporks, row_height, width_in_seconds);
+    draw_calls(calls, row_height, width_in_seconds);
 
 
     var drawing = 0;
@@ -397,24 +397,24 @@ function fill_canvas(audio, native_audio){
     var draggee;
     var drag_start_edge;
     function set_selected_call(m, pos){
-        draw_one_morepork(m, row_height, 1);
+        draw_one_call(m, row_height, 1);
         drag_start_pos = pos;
         draggee = m;
-        draw_one_morepork(m, row_height, 0, 'moving');
+        draw_one_call(m, row_height, 0, 'moving');
         topcanvas.onmousemove = function(e){
-            draw_one_morepork(m, row_height, 2, 'moving');
+            draw_one_call(m, row_height, 2, 'moving');
             var epos = get_pos(e).pos;
-            modify_morepork_shape(m, epos);
-            draw_one_morepork(m, row_height, 0, 'moving');
+            modify_call_shape(m, epos);
+            draw_one_call(m, row_height, 0, 'moving');
         };
     }
 
     topcanvas.onmousedown = function(e){
         var p = get_pos(e);
         if (p.ry > row_height - 45){
-            var m = find_enclosing_call(moreporks, p.pos);
+            var m = find_enclosing_call(calls, p.pos);
             if(m === undefined && e.ctrlKey){
-                /*control-click outside a morepork to make a new one
+                /*control-click outside a call to make a new one
                  * -- then you can shape it.*/
                 var left = p.pos - 7, right = p.pos + 7;
                 m = {
@@ -423,13 +423,13 @@ function fill_canvas(audio, native_audio){
                     right_pix: right,
                     selected: 1
                 };
-                moreporks.push(m);
+                calls.push(m);
             }
             if(m !== undefined){
                 if (e.shiftKey && e.ctrlKey){
                     /*grow/shrink left */
                     drag_start_edge = m.left_pix;
-                    modify_morepork_shape = function(mm, pos){
+                    modify_call_shape = function(mm, pos){
                         var md = pos - drag_start_pos;
                         var x = drag_start_edge + parseInt(md / 2)
                         if (x < m.right_pix){
@@ -441,7 +441,7 @@ function fill_canvas(audio, native_audio){
                 else if (e.ctrlKey){
                     /*grow/shrink right */
                     drag_start_edge = m.right_pix;
-                    modify_morepork_shape = function(mm, pos){
+                    modify_call_shape = function(mm, pos){
                         var md = pos - drag_start_pos;
                         var x = drag_start_edge + parseInt(md / 2);
                         if (x > m.left_pix){
@@ -455,7 +455,7 @@ function fill_canvas(audio, native_audio){
                     drag_start_edge = m.left_pix;
                     set_selected_call(m, p.pos);
                     var width = m.right_pix - m.left_pix;
-                    modify_morepork_shape = function(mm, pos){
+                    modify_call_shape = function(mm, pos){
                         var md = pos - drag_start_pos;
                         mm.left_pix = drag_start_edge + md;
                         mm.right_pix = m.left_pix + width;
@@ -471,22 +471,22 @@ function fill_canvas(audio, native_audio){
         var p = get_pos(e);
         if(draggee !== undefined){
             console.log("ending drag");
-            draw_one_morepork(draggee, row_height, 3, 'moving');
-            modify_morepork_shape(draggee, p.pos);
-            draw_moreporks(moreporks, row_height, width_in_seconds);
+            draw_one_call(draggee, row_height, 3, 'moving');
+            modify_call_shape(draggee, p.pos);
+            draw_calls(calls, row_height, width_in_seconds);
             topcanvas.onmousemove = undefined;
             draggee = undefined;
             drag_start_pos = undefined;
             drag_start_edge = undefined;
         }
         else {
-            var m = find_enclosing_call(moreporks, p.pos);
+            var m = find_enclosing_call(calls, p.pos);
             if (p.ry < row_height - 45 || m === undefined){
                 start_playing_at_pos(p.pos);
             }
             else {
                 m.selected = ! m.selected;
-                draw_moreporks(moreporks, row_height, width_in_seconds);
+                draw_calls(calls, row_height, width_in_seconds);
             }
         }
         e.preventDefault();
@@ -505,14 +505,14 @@ function fill_canvas(audio, native_audio){
             e.preventDefault();
         }
         else if (c == 'm'){
-            moreporks = merge_calls(moreporks);
-            draw_moreporks(moreporks, row_height, width_in_seconds);
+            calls = merge_calls(calls);
+            draw_calls(calls, row_height, width_in_seconds);
         }
         else if (c == 'o'){
-            for (i = 0; i < moreporks.length; i++){
-                moreporks[i].selected = 0;
+            for (i = 0; i < calls.length; i++){
+                calls[i].selected = 0;
             }
-            draw_moreporks(moreporks, row_height, width_in_seconds);
+            draw_calls(calls, row_height, width_in_seconds);
         }
         else if (c == 'i'){
             var el = document.getElementById('interesting');
@@ -526,16 +526,16 @@ function fill_canvas(audio, native_audio){
     save_button.onclick = function(e){
         var i;
         var msg = '';
-        moreporks.sort(function(a, b){return a.left_pix - b.left_pix});
-        for (i = 0; i < moreporks.length; i++){
-            var m = moreporks[i];
+        calls.sort(function(a, b){return a.left_pix - b.left_pix});
+        for (i = 0; i < calls.length; i++){
+            var m = calls[i];
             if (m.selected){
                 var left_sec = m.left_pix * pixel2sec;
                 var right_sec = m.right_pix * pixel2sec;
                 msg += left_sec.toFixed(2) + ',' + right_sec.toFixed(2) + ',';
             }
         }
-        document.getElementById('moreporks').value=msg;
+        document.getElementById('calls').value=msg;
         console.log(msg);
         document.getElementById('form').submit();
     };

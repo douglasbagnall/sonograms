@@ -2,7 +2,7 @@
 <html>
 <head>  <meta charset="utf-8">
 
-  <title>Morepork detector: {{ wav }}</title>
+  <title>Call detector: {{ wav }}</title>
   <script>
     var URL = '{{wavdir}}/{{ wav }}'
   </script>
@@ -27,7 +27,7 @@
 <p>
 <span class=message>{{ msg }}</span>
 <br>
-So far {{moreporks_found}} calls found in {{files_processed}} files. {{files_ignored}} files have been ignored, and {{files_interesting}} have been marked interesting. There are {{ files_remaining }} to go.
+So far {{calls_found}} calls found in {{files_processed}} files. {{files_ignored}} files have been ignored, and {{files_interesting}} have been marked interesting. There are {{ files_remaining }} to go.
 <br>
 Looking at <b>{{wav}}</b>
 <span id=buttons>
@@ -38,7 +38,7 @@ Looking at <b>{{wav}}</b>
        title="tick if this file is interesting" value=skip>Interesting.
 
 <input type=hidden name=wav value="{{ wav }}">
-<input type=hidden id=moreporks name=moreporks>
+<input type=hidden id=calls name=calls>
 </span>
 
 </p>

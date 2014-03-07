@@ -1,7 +1,7 @@
 
-var MOREPORK_DEBUG = 0;
+var CALL_DEBUG = 0;
 
-function get_morepork_intensity(spectrogram, lf, hf){
+function get_call_intensity(spectrogram, lf, hf){
     var i, j;
     var low_band = spectrogram.hz2band(lf);
     var top_band = spectrogram.hz2band(hf);
@@ -246,9 +246,9 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
     return winners;
 }
 
-function morepork_debug(series){
+function call_debug(series){
     var i, j;
-    console.time('morepork debug');
+    console.time('call debug');
     var canvas = document.getElementById("debug");
     var context = canvas.getContext('2d');
     var colours = ['#FFFF00', '#FFaa00', '#00cc00', '#FF0011', '#00FFFF', '#FF33FF'];
@@ -279,14 +279,14 @@ function morepork_debug(series){
         context.stroke();
         context.fillText(attr, 10, offset - step / 2);
     }
-    console.timeEnd('morepork debug');
+    console.timeEnd('call debug');
 }
 
-function morepork_detector(spectrogram, lower_freq, upper_freq){
+function call_detector(spectrogram, lower_freq, upper_freq){
     var i, j;
-    console.time('morepork intensity');
-    var series = get_morepork_intensity(spectrogram, lower_freq, upper_freq);
-    console.timeEnd('morepork intensity');
+    console.time('call intensity');
+    var series = get_call_intensity(spectrogram, lower_freq, upper_freq);
+    console.timeEnd('call intensity');
 
     var winners;
     if (USE_CALL_RATIO){
@@ -300,7 +300,7 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
         CALL_DIFF_THRESHOLD_RIGHT, spectrogram.windows_per_second);
     };
     console.log('winners', winners);
-    if (MOREPORK_DEBUG){
+    if (CALL_DEBUG){
         series.all_winners = new Float32Array(spectrogram.width);
         for (i = 0; i < winners.length; i++){
             var w = winners[i];
@@ -308,7 +308,7 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
                 series.all_winners[j] = THRESHOLD - w.score;
             }
         }
-        morepork_debug(series);
+        call_debug(series);
     }
     else {
         var el = document.getElementById("debug");
@@ -319,7 +319,7 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
 }
 
 
-function draw_one_morepork(m, row_height, erase, canvas_id){
+function draw_one_call(m, row_height, erase, canvas_id){
     if (canvas_id === undefined){
         canvas_id = 'drawing';
     }
@@ -368,14 +368,14 @@ function draw_one_morepork(m, row_height, erase, canvas_id){
     context.globalCompositeOperation = comp_op;
 }
 
-function draw_moreporks(moreporks, row_height, width_in_seconds){
+function draw_calls(calls, row_height, width_in_seconds){
     var i, j;
     var canvas = document.getElementById('drawing');
     var context = canvas.getContext('2d');
     context.clearRect(0, 0, canvas.width, canvas.height);
-    for (i = 0; i < moreporks.length; i++){
-        var m = moreporks[i];
-        draw_one_morepork(m, row_height);
+    for (i = 0; i < calls.length; i++){
+        var m = calls[i];
+        draw_one_call(m, row_height);
     }
 
 }

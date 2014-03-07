@@ -18,7 +18,7 @@ IGNORED_WAV_DIRS = ('doc-kiwi',
                     'doc-minutes')
 #WAV_DIR = 'static/wav-test'
 
-MOREPORKS_FOUND = 0
+CALLS_FOUND = 0
 FILES_PROCESSED = 0
 FILES_IGNORED = 0
 FILES_INTERESTING = 0
@@ -43,8 +43,8 @@ def load_from_files(fn, ignored=None):
     f.close()
 
 def set_up_dbm_and_file_list():
-    global DB, FILES, MOREPORKS_FOUND, FILES_PROCESSED, FILES_IGNORED, FILES_INTERESTING
-    DB = anydbm.open('moreporks.dbm', 'c')
+    global DB, FILES, CALLS_FOUND, FILES_PROCESSED, FILES_IGNORED, FILES_INTERESTING
+    DB = anydbm.open('calls.dbm', 'c')
     # sync with filesystem on start up
     for dirpath, dirnames, filenames in os.walk(WAV_DIR, followlinks=True):
         d = re.sub(WAV_DIR + '/?', '', dirpath)
@@ -61,13 +61,13 @@ def set_up_dbm_and_file_list():
                 except:
                     print >>sys.stderr, "couldn't add %s, stupid dbm" % fn
 
-    for fn, moreporks in DB.iteritems():
-        if moreporks == IGNORED:
+    for fn, calls in DB.iteritems():
+        if calls == IGNORED:
             FILES_IGNORED += 1
         else:
-            FILES_INTERESTING += moreporks.startswith(INTERESTING)
+            FILES_INTERESTING += calls.startswith(INTERESTING)
             FILES_PROCESSED += 1
-            MOREPORKS_FOUND += moreporks.count(' ') // 2
+            CALLS_FOUND += calls.count(' ') // 2
             ffn = os.path.join(WAV_DIR, fn)
             if not os.path.exists(ffn):
                 print >> sys.stderr, "%s is missing" % ffn
@@ -117,7 +117,7 @@ def sanitise_times(times):
 
 
 def save_results():
-    global FILES_PROCESSED, FILES_IGNORED, MOREPORKS_FOUND, FILES_INTERESTING
+    global FILES_PROCESSED, FILES_IGNORED, CALLS_FOUND, FILES_INTERESTING
     if request.method == 'POST':
         get = request.form.get
     else:
@@ -135,19 +135,19 @@ def save_results():
         DB[wav] = IGNORED
         FILES_IGNORED += 1
         return "added '%s' to ignored list" % wav
-    morepork_string = get('moreporks')
-    morepork_times = sanitise_times(morepork_string)
-    time_string = ' '.join("%.2f" % x for x in morepork_times)
+    call_string = get('calls')
+    call_times = sanitise_times(call_string)
+    time_string = ' '.join("%.2f" % x for x in call_times)
     if get('interesting'):
         FILES_INTERESTING += 1
         interesting_string = INTERESTING + ' '
     else:
         interesting_string = ''
     FILES_PROCESSED += 1
-    MOREPORKS_FOUND += len(morepork_times) // 2
+    CALLS_FOUND += len(call_times) // 2
     DB[wav] = interesting_string + time_string
     DB.sync()
-    return "saved %d moreporks in %s" % (len(morepork_times) / 2, wav)
+    return "saved %d calls in %s" % (len(call_times) / 2, wav)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -161,7 +161,7 @@ def main_page():
                            files_remaining=len(PENDING_FILES),
                            files_processed=FILES_PROCESSED, files_ignored=FILES_IGNORED,
                            files_interesting=FILES_INTERESTING,
-                           moreporks_found=MOREPORKS_FOUND)
+                           calls_found=CALLS_FOUND)
 
 @app.route('/results.txt')
 def results():
