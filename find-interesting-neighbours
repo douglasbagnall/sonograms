@@ -1,0 +1,32 @@
+#!/usr/bin/python
+
+#Interesting minutes were selected from files made thus:
+#
+#for f in ~/corpora/nocturnal-calls/data/TRAINING/2012-13/*.flac;
+#   do flac -d "$f" --until=1:00 -o "static/wav/doc-minutes/$(basename $f)-60.wav";
+#done
+
+import sys, os
+import subprocess
+
+I_SUFFIX = '-60.wav'
+O_SUFFIX = '-60-900.wav'
+
+#doc-minutes/G165_BIRD_120313_212934.wav.flac-60.wav
+
+def main(interesting_file, src_dir, dest_dir):
+    f = open(interesting_file)
+    for line in f:
+        bn = os.path.basename(line.strip())
+        if not bn.endswith(I_SUFFIX):
+            raise RuntimeError("'%s' lacks the expected form" % bn)
+        src_name = bn[:-len(I_SUFFIX)]
+        dest_name = src_name + O_SUFFIX
+        cmd = ["flac", "-d",
+               os.path.join(src_dir, src_name),
+               "--skip=1:00", "-o",
+               os.path.join(dest_dir, dest_name)
+           ]
+        subprocess.check_call(cmd)
+
+main(*sys.argv[1:])
