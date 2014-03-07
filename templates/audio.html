@@ -13,12 +13,21 @@
 </head>
 <body>
 <form id=form method=post>
-  <div id=message></div>
-  <p><span class=message>{{ msg }}</span> So far {{moreporks_found}} calls found in {{files_processed}} files. {{files_ignored}} files have been ignored, and {{files_interesting}} have been marked interesting. There are {{ files_remaining }} to go.
+ <div id=instructions>
+<b>Click</b> to toggle/play. <b>Shift-click</b> to move.
+<b>Ctrl-click</b> to create or resize right.
+<b>Ctrl-shift-click</b> to resize left.
+<b>Space</b> to play/pause.
+<b>M</b> to merge overlapping calls.
+</div>
+ <div id=message></div>
+<p>
+So far {{moreporks_found}} calls found in {{files_processed}} files. {{files_ignored}} files have been ignored, and {{files_interesting}} have been marked interesting. There are {{ files_remaining }} to go.
 <br>
-Click to toggle activity. Shift-click to move. Ctrl-click to grow or
-create. Alt-click to shrink. <br>Looking at <b>{{wav}}</b>
-
+<span class=message>{{ msg }}</span>
+<br>
+Looking at <b>{{wav}}</b>
+<span id=buttons>
 <button id=save-button>save</button>
 <input type=submit id=ignore name=ignore title="use to permanently ignore bad or tricky examples" value=ignore>
 <input type=submit id=skip name=skip title="skip this one for now" value=skip>
@@ -27,18 +36,23 @@ create. Alt-click to shrink. <br>Looking at <b>{{wav}}</b>
 
 <input type=hidden name=wav value="{{ wav }}">
 <input type=hidden id=moreporks name=moreporks>
+</span>
 
 </p>
 </form>
+
+
 
 <div id=content>
   <div id=background>
   <canvas id="fft" width="1200" height="500"></canvas>
   <canvas id="debug" width="1200" height="600"></canvas>
   </div>
+  <canvas id="moving" width="1200" height="500"></canvas>
   <canvas id="drawing" width="1200" height="500"></canvas>
+
+
 </div>
-<canvas id="cursor" width="50" height="50"></canvas>
 
 </body>
 </html>

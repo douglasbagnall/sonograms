@@ -218,8 +218,6 @@ function find_calls_in_call_diff(series, threshold_left, threshold_right,
         }
         candidates.push({
                 score: err,
-                left_sec: left_start,
-                right_sec: right_stop,
                 left_pix: l_start,
                 right_pix: r_stop,
                 selected: err < THRESHOLD_MAYBE
@@ -321,8 +319,11 @@ function morepork_detector(spectrogram, lower_freq, upper_freq){
 }
 
 
-function draw_one_morepork(m, row_height, erase){
-    var canvas = document.getElementById('drawing');
+function draw_one_morepork(m, row_height, erase, canvas_id){
+    if (canvas_id === undefined){
+        canvas_id = 'drawing';
+    }
+    var canvas = document.getElementById(canvas_id);
     var context = canvas.getContext('2d');
     var width = canvas.width;
     var l_row = parseInt(m.left_pix / width);
@@ -338,9 +339,10 @@ function draw_one_morepork(m, row_height, erase){
         colour = "#ffffff";
         context.globalCompositeOperation = "destination-out";
     }
+
     context.beginPath();
     context.strokeStyle = colour;
-    context.lineWidth = 1.5;
+    context.lineWidth = (erase >= 2) ? erase : 1.5;
     if (l_row == r_row){
         y = (l_row + 1) * row_height;
         context.moveTo(l_col, y - 50);
@@ -368,7 +370,9 @@ function draw_one_morepork(m, row_height, erase){
 
 function draw_moreporks(moreporks, row_height, width_in_seconds){
     var i, j;
-
+    var canvas = document.getElementById('drawing');
+    var context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
     for (i = 0; i < moreporks.length; i++){
         var m = moreporks[i];
         draw_one_morepork(m, row_height);

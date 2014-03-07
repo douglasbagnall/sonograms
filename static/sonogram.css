@@ -8,6 +8,23 @@ body {
   display: inline;
 }
 
+#instructions {
+  background: #333;
+}
+
+p{
+  margin: 2px;
+  padding: 0;
+  line-height: 1.4;
+}
+
+
+#instructions b {
+  background: #996;
+ color: black;
+  padding: 0px 2px;
+}
+
 span.message {
   color: #ffa;
   margin-right: 10px;
@@ -34,17 +51,16 @@ span.message {
   top: 0;
   left:0;
   z-index: 11;
-
   cursor: crosshair;
 }
 
-#cursor {
+#moving {
   position:absolute;
   top: 0;
   left:0;
-  z-index: 1;
-  cursor: crosshair;
+  z-index: 2;
 }
+
 
 #debug {
   border: 1px solid black;

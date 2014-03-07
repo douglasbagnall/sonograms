@@ -254,6 +254,39 @@ function paint_spectrogram(spectrogram, canvas,
 }
 
 
+function find_enclosing_call(calls, pos){
+    for (var i = 0; i < calls.length; i++){
+        var m = calls[i];
+        if (pos >= m.left_pix && pos <= m.right_pix){
+            return m;
+        }
+    }
+    return undefined;
+}
+
+
+function merge_calls(calls){
+    calls.sort(function(a, b){return a.left_pix - b.left_pix});
+    if (calls.length == 1){
+        return calls;
+    }
+    var filtered = [];
+    var left, right;
+    left = calls[0];
+    for (var i = 1; i < calls.length; i++){
+        var right = calls[i];
+        if (left.selected != right.selected || left.right_pix < right.left_pix){
+            filtered.push(left);
+            left = right;
+        }
+        else if (left.right_pix < right.right_pix){
+            left.right_pix = right.right_pix;
+        }
+    }
+    filtered.push(left);
+    return filtered;
+}
+
 function fill_canvas(audio, native_audio){
     var fftcanvas = document.getElementById('fft');
     var topcanvas = document.getElementById('drawing');
@@ -360,111 +393,73 @@ function fill_canvas(audio, native_audio){
         return pos;
     }
 
-    topcanvas.onclick = function(e){
-        var p = get_pos(e);
-        console.log(p);
-        if (p.ry < row_height - 40){
-            start_playing_at_pos(p.pos);
-        }
-        else {
-            var m = undefined;
-            for (var i = 0; i < moreporks.length; i++){
-                var mm = moreporks[i];
-                if (p.pos >= mm.left_pix && p.pos <= mm.right_pix){
-                    m = mm;
-                    break;
-                }
-            }
-            if (m === undefined){
-                if (e.ctrlKey){
-                    var left = p.pos - 7, right = p.pos + 7;
-                    moreporks.push({
-                        score: THRESHOLD,
-                        left_sec: left * pixel2sec,
-                        right_sec: right * pixel2sec,
-                        left_pix: left,
-                        right_pix: right,
-                        selected: 1
-                    });
-                }
-            }
-            else if (e.ctrlKey){
-                draw_one_morepork(m, row_height, 1);
-                m.right_pix++;
-                m.right_sec = m.right_pix * pixel2sec;
-                draw_one_morepork(m, row_height);
-            }
-            else if (e.altKey || e.metaKey){
-                draw_one_morepork(m, row_height, 1);
-                m.right_pix--;
-                m.right_sec = m.right_pix * pixel2sec;
-                if (m.right_pix - m.left_pix < 5){
-                    moreporks.splice(i, 1);
-                }
-                else{
-                    draw_one_morepork(m, row_height);
-                }
-            }
-            else {
-                draw_one_morepork(m, row_height, 1);
-                m.selected = ! m.selected;
-                draw_one_morepork(m, row_height);
-            }
-        }
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-    // ondblclick fires after two onclicks. Here it accelerates growing and shrinking, and
-    // tries to cancel the default action (selection of the canvas for cut and paste).
-    topcanvas.ondblclick = function(e){
-        var p = get_pos(e);
-        if (p.ry >= row_height - 40){
-            var m = undefined;
-            for (var i = 0; i < moreporks.length; i++){
-                var mm = moreporks[i];
-                if (p.pos >= mm.left_pix && p.pos <= mm.right_pix){
-                    m = mm;
-                    break;
-                }
-            }
-            if (e.ctrlKey){
-                draw_one_morepork(m, row_height, 1);
-                m.right_pix++;
-                m.right_sec = m.right_pix * pixel2sec;
-                draw_one_morepork(m, row_height);
-            }
-            else if (e.altKey || e.metaKey){
-                draw_one_morepork(m, row_height, 1);
-                m.right_pix--;
-                m.right_sec = m.right_pix * pixel2sec;
-                if (m.right_pix - m.left_pix < 5){
-                    moreporks.splice(i, 1);
-                }
-                else{
-                    draw_one_morepork(m, row_height);
-                }
-            }
-        }
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-
     var drag_start_pos;
     var draggee;
+    var drag_start_edge;
+    function set_selected_call(m, pos){
+        draw_one_morepork(m, row_height, 1);
+        drag_start_pos = pos;
+        draggee = m;
+        draw_one_morepork(m, row_height, 0, 'moving');
+        topcanvas.onmousemove = function(e){
+            draw_one_morepork(m, row_height, 2, 'moving');
+            var epos = get_pos(e).pos;
+            modify_morepork_shape(m, epos);
+            draw_one_morepork(m, row_height, 0, 'moving');
+        };
+    }
+
     topcanvas.onmousedown = function(e){
         var p = get_pos(e);
-        if (e.shiftKey && p.ry > row_height - 40){
-            for (var i = 0; i < moreporks.length; i++){
-                var m = moreporks[i];
-                if (p.pos >= m.left_pix && p.pos <= m.right_pix){
-                    console.log("beginning shift");
-                    m.selected = ! m.selected;
-                    draw_one_morepork(m, row_height, 1);
-                    drag_start_pos = p.pos;
-                    draggee = m;
-                    break;
+        if (p.ry > row_height - 45){
+            var m = find_enclosing_call(moreporks, p.pos);
+            if(m === undefined && e.ctrlKey){
+                /*control-click outside a morepork to make a new one
+                 * -- then you can shape it.*/
+                var left = p.pos - 7, right = p.pos + 7;
+                m = {
+                    score: THRESHOLD,
+                    left_pix: left,
+                    right_pix: right,
+                    selected: 1
+                };
+                moreporks.push(m);
+            }
+            if(m !== undefined){
+                if (e.shiftKey && e.ctrlKey){
+                    /*grow/shrink left */
+                    drag_start_edge = m.left_pix;
+                    modify_morepork_shape = function(mm, pos){
+                        var md = pos - drag_start_pos;
+                        var x = drag_start_edge + parseInt(md / 2)
+                        if (x < m.right_pix){
+                            mm.left_pix = x;
+                        }
+                    }
+                    set_selected_call(m, p.pos);
+                }
+                else if (e.ctrlKey){
+                    /*grow/shrink right */
+                    drag_start_edge = m.right_pix;
+                    modify_morepork_shape = function(mm, pos){
+                        var md = pos - drag_start_pos;
+                        var x = drag_start_edge + parseInt(md / 2);
+                        if (x > m.left_pix){
+                            mm.right_pix = x;
+                        }
+                    }
+                    set_selected_call(m, p.pos);
+                }
+                else if (e.shiftKey){
+                    /*shift*/
+                    drag_start_edge = m.left_pix;
+                    set_selected_call(m, p.pos);
+                    var width = m.right_pix - m.left_pix;
+                    modify_morepork_shape = function(mm, pos){
+                        var md = pos - drag_start_pos;
+                        mm.left_pix = drag_start_edge + md;
+                        mm.right_pix = m.left_pix + width;
+                    }
                 }
             }
         }
@@ -474,16 +469,25 @@ function fill_canvas(audio, native_audio){
 
     topcanvas.onmouseup = function(e){
         var p = get_pos(e);
-        if(drag_start_pos !== undefined){
-            console.log("ending shift");
-            var d = p.pos - drag_start_pos;
-            draggee.left_pix += d;
-            draggee.right_pix += d;
-            draggee.left_sec = draggee.left_pix * pixel2sec;
-            draggee.right_sec = draggee.right_pix * pixel2sec;
-            draw_one_morepork(draggee, row_height);
+        if(draggee !== undefined){
+            console.log("ending drag");
+            draw_one_morepork(draggee, row_height, 3, 'moving');
+            modify_morepork_shape(draggee, p.pos);
+            draw_moreporks(moreporks, row_height, width_in_seconds);
+            topcanvas.onmousemove = undefined;
             draggee = undefined;
             drag_start_pos = undefined;
+            drag_start_edge = undefined;
+        }
+        else {
+            var m = find_enclosing_call(moreporks, p.pos);
+            if (p.ry < row_height - 45 || m === undefined){
+                start_playing_at_pos(p.pos);
+            }
+            else {
+                m.selected = ! m.selected;
+                draw_moreporks(moreporks, row_height, width_in_seconds);
+            }
         }
         e.preventDefault();
         e.stopPropagation();
@@ -500,6 +504,10 @@ function fill_canvas(audio, native_audio){
             }
             e.preventDefault();
         }
+        else if (c == 'm'){
+            moreporks = merge_calls(moreporks);
+            draw_moreporks(moreporks, row_height, width_in_seconds);
+        }
     };
     var save_button = document.getElementById('save-button');
     save_button.onclick = function(e){
@@ -509,7 +517,9 @@ function fill_canvas(audio, native_audio){
         for (i = 0; i < moreporks.length; i++){
             var m = moreporks[i];
             if (m.selected){
-                msg += m.left_sec.toFixed(2) + ',' + m.right_sec.toFixed(2) + ',';
+                var left_sec = m.left_pix * pixel2sec;
+                var right_sec = m.right_pix * pixel2sec;
+                msg += left_sec.toFixed(2) + ',' + right_sec.toFixed(2) + ',';
             }
         }
         document.getElementById('moreporks').value=msg;
