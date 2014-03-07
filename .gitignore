@@ -9,7 +9,7 @@
 results*.txt
 static/wav/*
 static/minutes/*
-moreporks.dbm
+/*.dbm
 /times/
 /results*.txt
 /interesting*.txt
