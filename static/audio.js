@@ -237,7 +237,7 @@ function paint_spectrogram(spectrogram, canvas,
             var v4 = v2 * v2;
             pixels[o] = (v + 9e5 * v3) * 1e4;
             pixels[o + 1] = (v + 2e3 * v2 - 3e7 * v4) * 8e3;
-            pixels[o + 2] = (v - 400 * v2 + 6e7 * v4) * 4e4;
+            pixels[o + 2] = (v - 300 * v2 + 4e7 * v4) * 4e4;
             pixels[o + 3] = 255;
         }
         if (col >= width){
