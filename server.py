@@ -13,7 +13,9 @@ INTERESTING = 'interesting'
 PENDING_FILES = set()
 
 WAV_DIR = 'static/wav'
-IGNORED_WAV_DIRS = ('doc-kiwi', 'doc-morepork', 'rfpt-15m')
+IGNORED_WAV_DIRS = ('doc-kiwi',
+                    'doc-morepork', 'rfpt-15m',
+                    'doc-minutes')
 #WAV_DIR = 'static/wav-test'
 
 MOREPORKS_FOUND = 0
