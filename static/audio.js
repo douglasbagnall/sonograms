@@ -508,6 +508,12 @@ function fill_canvas(audio, native_audio){
             moreporks = merge_calls(moreporks);
             draw_moreporks(moreporks, row_height, width_in_seconds);
         }
+        else if (c == 'o'){
+            for (i = 0; i < moreporks.length; i++){
+                moreporks[i].selected = 0;
+            }
+            draw_moreporks(moreporks, row_height, width_in_seconds);
+        }
     };
     var save_button = document.getElementById('save-button');
     save_button.onclick = function(e){
