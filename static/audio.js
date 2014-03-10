@@ -293,6 +293,7 @@ function merge_calls(calls){
 function fill_canvas(audio, native_audio){
     var fftcanvas = document.getElementById('fft');
     var topcanvas = document.getElementById('drawing');
+    var movingcanvas = document.getElementById('moving');
     var context = fftcanvas.getContext('2d');
     var width = fftcanvas.width;
     var width_in_seconds = 60;
@@ -303,6 +304,7 @@ function fill_canvas(audio, native_audio){
                            width_in_seconds) * row_height;
     fftcanvas.height = height;
     topcanvas.height = height;
+    movingcanvas.height = height;
     var audio_source;
     var window_size = 1024;
     var spacing = width_in_seconds * audio.samplerate / width;
