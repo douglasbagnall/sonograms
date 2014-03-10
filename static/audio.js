@@ -487,7 +487,7 @@ function fill_canvas(audio, native_audio){
         }
         else {
             var m = find_enclosing_call(calls, p.pos);
-            if (p.ry < row_height - 45 || m === undefined){
+            if (p.ry < row_height - 45){
                 start_playing_at_pos(p.pos);
             }
             else {
