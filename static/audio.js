@@ -1,5 +1,68 @@
 var audio_context;
 
+
+
+function draw_one_call(m, row_height, erase, canvas_id){
+    if (canvas_id === undefined){
+        canvas_id = 'drawing';
+    }
+    var canvas = document.getElementById(canvas_id);
+    var context = canvas.getContext('2d');
+    var width = canvas.width;
+    var l_row = parseInt(m.left_pix / width);
+    var l_col = parseInt(m.left_pix % width);
+    var r_row = parseInt(m.right_pix / width);
+    var r_col = parseInt(m.right_pix % width);
+    var y;
+    var cross_bar = 40 - 30 * m.score / THRESHOLD;
+    var comp_op = context.globalCompositeOperation;
+    var colour = m.selected ? "#33ff00" : "#cc0000";
+    if (erase){
+        //colour = "rgba(255,255,255,255)";
+        colour = "#ffffff";
+        context.globalCompositeOperation = "destination-out";
+    }
+
+    context.beginPath();
+    context.strokeStyle = colour;
+    context.lineWidth = (erase >= 2) ? erase : 1.5;
+    if (l_row == r_row){
+        y = (l_row + 1) * row_height;
+        context.moveTo(l_col, y - 50);
+        context.lineTo(l_col, y - 10);
+        context.lineTo(r_col, y - 10);
+        context.lineTo(r_col, y - 50);
+        context.moveTo(l_col, y - cross_bar);
+        context.lineTo(r_col, y - cross_bar);
+    }
+    else {
+        /*It should be safe to assume right row is next row - i.e.
+         the call is less than 1 minute long */
+        y = (l_row + 1) * row_height;
+        context.moveTo(l_col, y - 50);
+        context.lineTo(l_col, y - 10);
+        context.lineTo(width, y - 10);
+        y = (r_row + 1) * row_height;
+        context.moveTo(0, y - 10);
+        context.lineTo(r_col, y - 10);
+        context.lineTo(r_col, y - 50);
+    }
+    context.stroke();
+    context.globalCompositeOperation = comp_op;
+}
+
+function draw_calls(calls, row_height, width_in_seconds){
+    var i, j;
+    var canvas = document.getElementById('drawing');
+    var context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (i = 0; i < calls.length; i++){
+        var m = calls[i];
+        draw_one_call(m, row_height);
+    }
+}
+
+
 function parse_wav(raw){
     /*   https://ccrma.stanford.edu/courses/422/projects/WaveFormat/ */
     var header = new DataView(raw, 0, 44);
@@ -285,6 +348,10 @@ function merge_calls(calls){
         else if (left.right_pix < right.right_pix){
             left.right_pix = right.right_pix;
         }
+        else {
+            i++;
+            filtered.push(left);
+        }
     }
     filtered.push(left);
     return filtered;
@@ -297,31 +364,32 @@ function fill_canvas(audio, native_audio){
     var context = fftcanvas.getContext('2d');
     var width = fftcanvas.width;
     var width_in_seconds = 60;
+    var window_size = 1024;
 
     var pixel2sec = width_in_seconds / width;
-    var row_height = 160;
+    var row_height = parseInt((SPECTROGRAM_TOP - SPECTROGRAM_BOTTOM) *
+                              window_size / audio.samplerate + 40);
+    console.log(row_height);
     var height = Math.ceil(audio.samples.length / audio.samplerate /
                            width_in_seconds) * row_height;
+
     fftcanvas.height = height;
     topcanvas.height = height;
     movingcanvas.height = height;
     var audio_source;
-    var window_size = 1024;
     var spacing = width_in_seconds * audio.samplerate / width;
 
     console.time('calculate_spectrogram');
     var spectrogram = calculate_spectrogram(audio, window_size, spacing);
     console.timeEnd('calculate_spectrogram');
     var pixels = paint_spectrogram(spectrogram, fftcanvas, row_height,
-                                   width_in_seconds, 550, 1500, 1);
+                                   width_in_seconds, SPECTROGRAM_BOTTOM,
+                                   SPECTROGRAM_TOP, 1);
 
     console.log(spectrogram);
 
-    var LOWER_FREQ = 650;
-    var UPPER_FREQ = 1100;
-
     console.time('detector');
-    var calls = call_detector(spectrogram, LOWER_FREQ, UPPER_FREQ);
+    var calls = call_detector(spectrogram);
     console.timeEnd('detector');
 
     draw_calls(calls, row_height, width_in_seconds);

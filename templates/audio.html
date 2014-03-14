@@ -4,10 +4,11 @@
 
   <title>Call detector: {{ wav }}</title>
   <script>
-    var URL = '{{wavdir}}/{{ wav }}'
+    var URL = '{{wavdir}}/{{ wav }}';
+    var KNOWN_CALLS = [ {{known_calls}} ];
   </script>
   <script type="text/javascript" src="static/dsp.js"></script>
-  <script type="text/javascript" src="static/morepork.js"></script>
+  <script type="text/javascript" src="static/{{species}}.js"></script>
   <script type="text/javascript" src="static/audio.js"></script>
   <link rel="stylesheet" href="static/sonogram.css" />
 </head>

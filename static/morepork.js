@@ -1,3 +1,8 @@
+var SPECTROGRAM_TOP = 1500;
+var SPECTROGRAM_BOTTOM = 550;
+var LOWER_FREQ = 650;
+var UPPER_FREQ = 1100;
+
 
 var CALL_DEBUG = 0;
 
@@ -282,10 +287,10 @@ function call_debug(series){
     console.timeEnd('call debug');
 }
 
-function call_detector(spectrogram, lower_freq, upper_freq){
+function call_detector(spectrogram){
     var i, j;
     console.time('call intensity');
-    var series = get_call_intensity(spectrogram, lower_freq, upper_freq);
+    var series = get_call_intensity(spectrogram, LOWER_FREQ, UPPER_FREQ);
     console.timeEnd('call intensity');
 
     var winners;
@@ -316,66 +321,4 @@ function call_detector(spectrogram, lower_freq, upper_freq){
 
     }
     return winners;
-}
-
-
-function draw_one_call(m, row_height, erase, canvas_id){
-    if (canvas_id === undefined){
-        canvas_id = 'drawing';
-    }
-    var canvas = document.getElementById(canvas_id);
-    var context = canvas.getContext('2d');
-    var width = canvas.width;
-    var l_row = parseInt(m.left_pix / width);
-    var l_col = parseInt(m.left_pix % width);
-    var r_row = parseInt(m.right_pix / width);
-    var r_col = parseInt(m.right_pix % width);
-    var y;
-    var cross_bar = 40 - 30 * m.score / THRESHOLD;
-    var comp_op = context.globalCompositeOperation;
-    var colour = m.selected ? "#33ff00" : "#cc0000";
-    if (erase){
-        //colour = "rgba(255,255,255,255)";
-        colour = "#ffffff";
-        context.globalCompositeOperation = "destination-out";
-    }
-
-    context.beginPath();
-    context.strokeStyle = colour;
-    context.lineWidth = (erase >= 2) ? erase : 1.5;
-    if (l_row == r_row){
-        y = (l_row + 1) * row_height;
-        context.moveTo(l_col, y - 50);
-        context.lineTo(l_col, y - 10);
-        context.lineTo(r_col, y - 10);
-        context.lineTo(r_col, y - 50);
-        context.moveTo(l_col, y - cross_bar);
-        context.lineTo(r_col, y - cross_bar);
-    }
-    else {
-        /*It should be safe to assume right row is next row - i.e.
-         the call is less than 1 minute long */
-        y = (l_row + 1) * row_height;
-        context.moveTo(l_col, y - 50);
-        context.lineTo(l_col, y - 10);
-        context.lineTo(width, y - 10);
-        y = (r_row + 1) * row_height;
-        context.moveTo(0, y - 10);
-        context.lineTo(r_col, y - 10);
-        context.lineTo(r_col, y - 50);
-    }
-    context.stroke();
-    context.globalCompositeOperation = comp_op;
-}
-
-function draw_calls(calls, row_height, width_in_seconds){
-    var i, j;
-    var canvas = document.getElementById('drawing');
-    var context = canvas.getContext('2d');
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    for (i = 0; i < calls.length; i++){
-        var m = calls[i];
-        draw_one_call(m, row_height);
-    }
-
 }

@@ -15,13 +15,31 @@ PENDING_FILES = set()
 WAV_DIR = 'static/wav'
 IGNORED_WAV_DIRS = ('doc-kiwi',
                     'doc-morepork', 'rfpt-15m',
-                    'doc-minutes')
+                    'doc-minutes',
+                    'doc-interesting',
+                    'doc-weka',
+                )
 #WAV_DIR = 'static/wav-test'
 
 CALLS_FOUND = 0
 FILES_PROCESSED = 0
 FILES_IGNORED = 0
 FILES_INTERESTING = 0
+UNCONFIRMED_TIMES = {}
+
+DEFAULT_DBM_FILE = 'calls.dbm'
+
+def gen_times_from_file(fn):
+    f = open(fn)
+    for line in f:
+        line = line.strip()
+        if ' ' in line:
+            wav, times = line.split(None, 1)
+            yield (wav, sanitise_times(times))
+        else:
+            yield (wav, [])
+    f.close()
+
 
 def load_from_files(fn, ignored=None):
     """This is for when the database crashes."""
@@ -32,23 +50,19 @@ def load_from_files(fn, ignored=None):
             if line:
                 DB[line] = IGNORED
         f.close()
-    f = open(fn)
-    for line in f:
-        line = line.strip()
-        if ' ' in line:
-            fn, times = line.split(None, 1)
-            DB[fn] = ' '.join('%.2f' % x for x in sanitise_times(times))
-        elif line:
-            DB[line] = ''
-    f.close()
+    for wav, times in gen_times_from_file(fn):
+        DB[wav] = ' '.join(times)
 
-def set_up_dbm_and_file_list():
+def set_up_dbm_and_file_list(dbm_file, included_wav_dirs=[]):
     global DB, FILES, CALLS_FOUND, FILES_PROCESSED, FILES_IGNORED, FILES_INTERESTING
-    DB = anydbm.open('calls.dbm', 'c')
+    DB = anydbm.open(dbm_file, 'c')
     # sync with filesystem on start up
     for dirpath, dirnames, filenames in os.walk(WAV_DIR, followlinks=True):
         d = re.sub(WAV_DIR + '/?', '', dirpath)
-        if d in IGNORED_WAV_DIRS:
+        if included_wav_dirs:
+            if d not in included_wav_dirs:
+                continue
+        elif d in IGNORED_WAV_DIRS:
             print d
             continue
         for fn in filenames:
@@ -149,6 +163,8 @@ def save_results():
     DB.sync()
     return "saved %d calls in %s" % (len(call_times) / 2, wav)
 
+def get_known_calls(wav):
+    return UNCONFIRMED_TIMES.get(wav, [])
 
 @app.route('/', methods=['GET', 'POST'])
 def main_page():
@@ -157,11 +173,13 @@ def main_page():
         wav = random.sample(PENDING_FILES, 1)[0]
     else:
         wav = None
+    known_calls = ','.join(str(x) for x in get_known_calls(wav))
     return render_template('audio.html', wav=wav, wavdir=WAV_DIR, msg=msg,
                            files_remaining=len(PENDING_FILES),
                            files_processed=FILES_PROCESSED, files_ignored=FILES_IGNORED,
                            files_interesting=FILES_INTERESTING,
-                           calls_found=CALLS_FOUND)
+                           calls_found=CALLS_FOUND, known_calls=known_calls,
+                           species=SPECIES)
 
 @app.route('/results.txt')
 def results():
@@ -195,13 +213,40 @@ def results():
 
     return response
 
-set_up_dbm_and_file_list()
 
-if __name__ == '__main__':
+def main():
+    global SPECIES, UNCONFIRMED_TIMES, DB
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--load-times',
+                        help='load times from here')
+    parser.add_argument('-s', '--species', default='morepork',
+                        help='species to search for (morepork|weka)')
+    parser.add_argument('--world-visible', action='store_true',
+                        help='Allow connections from beyond localhost')
+    parser.add_argument('--dbm-file', default=DEFAULT_DBM_FILE,
+                        help='Use this DBM file')
+    parser.add_argument('--include-wav-dir', action='append',
+                        help='Use files from this subdirectory of %s' % WAV_DIR)
+
+    args = parser.parse_args()
+    if args.load_times:
+        for wav, times in gen_times_from_file(args.load_times):
+            if times:
+                UNCONFIRMED_TIMES[wav] = times
+    SPECIES = args.species
+
     try:
-        if True:
+        set_up_dbm_and_file_list(args.dbm_file, included_wav_dirs=args.include_wav_dir)
+        if not args.world_visible:
             app.run(debug=True)
         else:
             app.run(host='0.0.0.0')
+    except Exception, e:
+        print e
     finally:
         DB.close()
+
+
+if __name__ == '__main__':
+    main()
