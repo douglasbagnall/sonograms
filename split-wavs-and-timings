@@ -1,5 +1,16 @@
 #!/usr/bin/python
 
+"""The following command
+
+`./split-wavs-and-timings results-212.txt destination static/wav static/`
+
+will split the files listed in results-212.txt and found under
+static/wav/ into 60 second blocks and put them in static/destination.
+The timing file for the minutes will be static/destination/times.txt.
+
+The original files will not be harmed.
+"""
+
 import os, sys, subprocess
 import re
 
