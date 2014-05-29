@@ -18,6 +18,7 @@ IGNORED_WAV_DIRS = ('doc-kiwi',
                     'doc-minutes',
                     'doc-interesting',
                     'doc-weka',
+                    'snippets',
                 )
 #WAV_DIR = 'static/wav-test'
 
@@ -26,6 +27,7 @@ FILES_PROCESSED = 0
 FILES_IGNORED = 0
 FILES_INTERESTING = 0
 UNCONFIRMED_TIMES = {}
+REQUESTED_FILES = set()
 
 DEFAULT_DBM_FILE = 'calls.dbm'
 
@@ -37,7 +39,7 @@ def gen_times_from_file(fn):
             wav, times = line.split(None, 1)
             yield (wav, sanitise_times(times))
         else:
-            yield (wav, [])
+            yield (line, [])
     f.close()
 
 
@@ -53,7 +55,7 @@ def load_from_files(fn, ignored=None):
     for wav, times in gen_times_from_file(fn):
         DB[wav] = ' '.join(times)
 
-def set_up_dbm_and_file_list(dbm_file, included_wav_dirs=[]):
+def set_up_dbm_and_file_list(dbm_file, included_wav_dirs=[], included_wavs=None):
     global DB, FILES, CALLS_FOUND, FILES_PROCESSED, FILES_IGNORED, FILES_INTERESTING
     DB = anydbm.open(dbm_file, 'c')
     # sync with filesystem on start up
@@ -63,17 +65,20 @@ def set_up_dbm_and_file_list(dbm_file, included_wav_dirs=[]):
             if d not in included_wav_dirs:
                 continue
         elif d in IGNORED_WAV_DIRS:
-            print d
             continue
         for fn in filenames:
             if fn.endswith('.wav'):
+                if included_wavs and fn not in included_wavs:
+                    continue
                 if d:
-                    fn = d + '/' + fn
+                    ffn = d + '/' + fn
+                else:
+                    ffn = fn
                 try:
-                    if fn not in DB:
-                        PENDING_FILES.add(fn)
+                    if ffn not in DB or included_wavs:
+                        PENDING_FILES.add(ffn)
                 except:
-                    print >>sys.stderr, "couldn't add %s, stupid dbm" % fn
+                    print >>sys.stderr, "couldn't add %s, stupid dbm" % ffn
 
     for fn, calls in DB.iteritems():
         if calls == IGNORED:
@@ -164,6 +169,10 @@ def save_results():
     return "saved %d calls in %s" % (len(call_times) / 2, wav)
 
 def get_known_calls(wav):
+    if wav is not None:
+        basewav = os.path.basename(wav)
+        if basewav in UNCONFIRMED_TIMES:
+            wav = basewav
     return UNCONFIRMED_TIMES.get(wav, [])
 
 @app.route('/', methods=['GET', 'POST'])
@@ -228,22 +237,29 @@ def main():
                         help='Use this DBM file')
     parser.add_argument('--include-wav-dir', action='append',
                         help='Use files from this subdirectory of %s' % WAV_DIR)
+    parser.add_argument('--timed-files-only', action='store_true',
+                        help='Only use the files referenced by --load-times')
 
     args = parser.parse_args()
     if args.load_times:
         for wav, times in gen_times_from_file(args.load_times):
+            REQUESTED_FILES.add(wav)
             if times:
                 UNCONFIRMED_TIMES[wav] = times
     SPECIES = args.species
-
+    if args.timed_files_only:
+        included_wavs = REQUESTED_FILES
+    else:
+        included_wavs = None
     try:
-        set_up_dbm_and_file_list(args.dbm_file, included_wav_dirs=args.include_wav_dir)
+        set_up_dbm_and_file_list(args.dbm_file, included_wav_dirs=args.include_wav_dir,
+                                 included_wavs=included_wavs)
         if not args.world_visible:
             app.run(debug=True)
         else:
             app.run(host='0.0.0.0')
     except Exception, e:
-        print e
+        print >>sys.stderr, e
     finally:
         DB.close()
 
